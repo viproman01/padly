@@ -1,0 +1,7 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Theme.Padly" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor" tools:targetApi="l">#0E0E11</item>
+        <item name="android:navigationBarColor">#0E0E11</item>
+        <item name="android:windowBackground">#0E0E11</item>
+    </style>
+</resources>

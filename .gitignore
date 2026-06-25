@@ -1,0 +1,44 @@
+# Tooling state
+.claude/
+ruvector.db
+
+# Build artifacts
+**/node_modules/
+**/.next/
+**/build/
+**/dist/
+**/.build/
+**/.gradle/
+**/.idea/
+**/DerivedData/
+**/*.xcodeproj/xcuserdata/
+**/*.xcworkspace/xcuserdata/
+**/.swiftpm/
+**/Packages/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+
+# Signed artifacts (placeholders ok, real builds gitignored)
+landing/public/downloads/*.signed.dmg
+landing/public/downloads/*.signed.apk
+
+# Vercel
+.vercel/
+
+# Android signing secrets (CI generates throwaway)
+android/keystore.properties
+android/release.keystore
+android/*.jks
+

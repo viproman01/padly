@@ -1,0 +1,27 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0e0e11" />
+      <stop offset="100%" stop-color="#1f1f24" />
+    </linearGradient>
+    <radialGradient id="glow" cx="0.7" cy="0.3" r="0.6">
+      <stop offset="0%" stop-color="#7c5cff" stop-opacity="0.55" />
+      <stop offset="100%" stop-color="#7c5cff" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="logo-grad" x1="0" y1="0" x2="80" y2="80" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#a895ff" />
+      <stop offset="100%" stop-color="#5b3edc" />
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)" />
+  <rect width="1200" height="630" fill="url(#glow)" />
+  <g transform="translate(96 120)">
+    <rect width="80" height="80" rx="22" fill="url(#logo-grad)" />
+    <rect x="22" y="22" width="36" height="36" rx="10" fill="#0e0e11" />
+    <circle cx="40" cy="40" r="8" fill="#7c5cff" />
+  </g>
+  <text x="96" y="320" font-family="Inter, system-ui, sans-serif" font-size="96" font-weight="800" fill="#f7f7f8">Padly</text>
+  <text x="96" y="400" font-family="Inter, system-ui, sans-serif" font-size="40" font-weight="500" fill="#a895ff">Твой Android как трекпад Mac</text>
+  <text x="96" y="470" font-family="Inter, system-ui, sans-serif" font-size="28" font-weight="400" fill="#8c8c97">Мульти-тач жесты · клавиатура · презентер · WiFi/BT</text>
+  <text x="96" y="560" font-family="Inter, system-ui, sans-serif" font-size="22" font-weight="500" fill="#4b4b55">padly.app · open source · MIT</text>
+</svg>

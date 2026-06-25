@@ -1,0 +1,7 @@
+<resources>
+    <color name="ink_900">#0E0E11</color>
+    <color name="ink_800">#1F1F24</color>
+    <color name="ink_400">#8C8C97</color>
+    <color name="ink_100">#EDEDEF</color>
+    <color name="accent">#7C5CFF</color>
+</resources>
