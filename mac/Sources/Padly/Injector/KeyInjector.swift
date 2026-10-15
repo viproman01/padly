@@ -13,8 +13,36 @@ final class KeyInjector {
         let cgEvent = CGEvent(keyboardEventSource: nil,
                               virtualKey: macKey,
                               keyDown: event.down)
-        cgEvent?.flags = cgFlags(modifiers: event.modifiers)
+        var flags = cgFlags(modifiers: event.modifiers)
+        // Real arrow/navigation keys carry fn (+ numpad for arrows); system
+        // shortcuts such as ⌃→ (switch Space) only match with them present.
+        if HidToMac.isArrow(macKey) { flags.formUnion([.maskSecondaryFn, .maskNumericPad]) }
+        else if HidToMac.isNavigation(macKey) { flags.insert(.maskSecondaryFn) }
+        cgEvent?.flags = flags
         cgEvent?.post(tap: .cghidEventTap)
+    }
+
+    /// Types literal text as Unicode — any language, emoji included,
+    /// regardless of the Mac's current keyboard layout. One event pair per
+    /// character, which every app handles (some only read the first unit).
+    func typeText(_ text: String) {
+        for character in text {
+            let units = Array(String(character).utf16)
+            for down in [true, false] {
+                let event = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: down)
+                event?.flags = []
+                units.withUnsafeBufferPointer { buf in
+                    event?.keyboardSetUnicodeString(stringLength: buf.count, unicodeString: buf.baseAddress)
+                }
+                event?.post(tap: .cghidEventTap)
+            }
+        }
+    }
+
+    /// Down + up in one call — for presenter buttons and other one-shot keys.
+    func tap(code: UInt16, modifiers: UInt8 = 0) {
+        send(event: KeyEvent(code: code, modifiers: modifiers, down: true, ts: 0))
+        send(event: KeyEvent(code: code, modifiers: modifiers, down: false, ts: 0))
     }
 
     /// Synthetic KeyUp for every held key — called on disconnect so the
@@ -42,6 +70,13 @@ final class KeyInjector {
 /// HID Usage Page 0x07 → macOS virtual keycodes.
 /// Partial — covers the common codes Padly needs. Extend as required.
 enum HidToMac {
+    static func isArrow(_ key: CGKeyCode) -> Bool { (0x7B ... 0x7E).contains(key) }
+
+    /// Home, End, Page Up/Down, Forward Delete, Insert/Help.
+    static func isNavigation(_ key: CGKeyCode) -> Bool {
+        [0x73, 0x77, 0x74, 0x79, 0x75, 0x72].contains(key)
+    }
+
     static func translate(hid: UInt16) -> CGKeyCode? {
         switch hid {
         // Letters

@@ -24,8 +24,13 @@ export function Footer() {
           >
             GitHub
           </a>
-          <a href={`mailto:${site.contact}`} className="hover:text-ink-100">
-            {site.contact}
+          <a
+            href={site.links.issues}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="hover:text-ink-100"
+          >
+            Вопросы и баги
           </a>
         </nav>
       </div>

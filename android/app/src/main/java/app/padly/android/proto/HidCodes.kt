@@ -86,6 +86,28 @@ object HidCodes {
         else -> 0
     }).toUShort()
 
+    /**
+     * Cyrillic letter → HID code of the physical key it sits on in the standard
+     * ЙЦУКЕН layout, so shortcuts typed on a Russian keyboard (⌘+С) hit the
+     * same key as their Latin twin (⌘+C). Returns 0 if unmapped.
+     */
+    fun fromCyrillic(c: Char): UShort {
+        val idx = CYRILLIC_ROW.indexOf(c.lowercaseChar())
+        return if (idx >= 0) CYRILLIC_HID[idx] else 0u
+    }
+
+    private const val CYRILLIC_ROW = "йцукенгшщзхъфывапролджэячсмитьбюё"
+    private val CYRILLIC_HID: List<UShort> = listOf(
+        // й ц у к е н г ш щ з х ъ  →  q w e r t y u i o p [ ]
+        0x14, 0x1A, 0x08, 0x15, 0x17, 0x1C, 0x18, 0x0C, 0x12, 0x13, 0x2F, 0x30,
+        // ф ы в а п р о л д ж э  →  a s d f g h j k l ; '
+        0x04, 0x16, 0x07, 0x09, 0x0A, 0x0B, 0x0D, 0x0E, 0x0F, 0x33, 0x34,
+        // я ч с м и т ь б ю  →  z x c v b n m , .
+        0x1D, 0x1B, 0x06, 0x19, 0x05, 0x11, 0x10, 0x36, 0x37,
+        // ё  →  `
+        0x35,
+    ).map { it.toUShort() }
+
     /** ASCII char → HID code for typed characters that the soft keyboard delivers. */
     fun fromChar(c: Char): UShort {
         if (c in 'a'..'z') return ((c - 'a') + 0x04).toUShort()

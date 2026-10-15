@@ -31,6 +31,11 @@
     @apply inline-flex items-center justify-center gap-2 rounded-full border border-ink-600/60 px-6 py-3 text-sm font-semibold text-ink-100 transition hover:border-ink-400 hover:bg-ink-800;
   }
 
+  /* Некликабельная «кнопка» для ещё не вышедших сборок */
+  .btn-soon {
+    @apply inline-flex cursor-default select-none items-center justify-center gap-2 rounded-full border border-dashed border-ink-600/70 px-6 py-3 text-sm font-semibold text-ink-400;
+  }
+
   .surface {
     @apply rounded-2xl border border-ink-600/40 bg-ink-800/60 backdrop-blur;
   }

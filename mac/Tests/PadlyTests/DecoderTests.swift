@@ -1,9 +1,8 @@
 import XCTest
 @testable import Padly
 
-final class DecoderTests: XCTestCase {
-    func testCursorMoveRoundTrip() throws {
-        let key = Data("test-key".utf8)
+final class InterpreterTests: XCTestCase {
+    func testCursorMoveInterpret() throws {
         let payload: MsgPack = .map([
             (.str("t"), .str("cursorMove")),
             (.str("d"), .map([
@@ -14,17 +13,7 @@ final class DecoderTests: XCTestCase {
         ])
         let body = MsgPackCodec.encode(payload)
 
-        let ver: UInt8 = 0x01
-        var seqBytes = Data([0x01, 0x00, 0x00, 0x00])
-        let hmac = HMACUtil.sha256(key: key, parts: [Data([ver]), seqBytes, body])
-        var frame = Data()
-        frame.append(ver)
-        frame.append(seqBytes)
-        frame.append(body)
-        frame.append(hmac)
-
-        let dec = Decoder()
-        let msg = try dec.decode(frame: frame, hmacKey: key)
+        let msg = try MessageInterpreter().interpret(body)
         if case let .cursorMove(dx, dy, ts) = msg {
             XCTAssertEqual(dx, 1.5)
             XCTAssertEqual(dy, -2.0)
@@ -32,13 +21,59 @@ final class DecoderTests: XCTestCase {
         } else {
             XCTFail("expected cursorMove, got \(msg)")
         }
-        _ = seqBytes
     }
 
-    func testBadHmacIsRejected() {
-        let key = Data("test-key".utf8)
-        let frame = Data(repeating: 0, count: 1 + 4 + 8 + 32) // mostly zeros — hmac wrong
-        let dec = Decoder()
-        XCTAssertThrowsError(try dec.decode(frame: frame, hmacKey: key))
+    func testHelloEParse() throws {
+        let pub = Data(repeating: 0x04, count: 65)
+        let payload: MsgPack = .map([
+            (.str("t"), .str("helloE")),
+            (.str("d"), .map([
+                (.str("deviceId"), .str("dev-1")),
+                (.str("deviceName"), .str("Pixel")),
+                (.str("appVer"), .str("0.1.0")),
+                (.str("caps"), .array([.str("gesture")])),
+                (.str("pub"), .bin(pub)),
+            ])),
+        ])
+        let hello = try MessageInterpreter().parseHelloE(MsgPackCodec.encode(payload))
+        XCTAssertEqual(hello.deviceId, "dev-1")
+        XCTAssertEqual(hello.deviceName, "Pixel")
+        XCTAssertEqual(hello.publicKey, pub)
+        XCTAssertEqual(hello.capabilities, ["gesture"])
+    }
+
+    func testHelloEWithShortKeyRejected() {
+        let payload: MsgPack = .map([
+            (.str("t"), .str("helloE")),
+            (.str("d"), .map([
+                (.str("deviceId"), .str("dev-1")),
+                (.str("deviceName"), .str("Pixel")),
+                (.str("appVer"), .str("0.1.0")),
+                (.str("pub"), .bin(Data(repeating: 1, count: 10))),
+            ])),
+        ])
+        XCTAssertThrowsError(try MessageInterpreter().parseHelloE(MsgPackCodec.encode(payload)))
+    }
+
+    func testPinProofInterpret() throws {
+        let proof = Data(repeating: 0xAB, count: 32)
+        let payload: MsgPack = .map([
+            (.str("t"), .str("pin")),
+            (.str("d"), .map([(.str("proof"), .bin(proof))])),
+        ])
+        let msg = try MessageInterpreter().interpret(MsgPackCodec.encode(payload))
+        if case let .pinProof(p) = msg {
+            XCTAssertEqual(p, proof)
+        } else {
+            XCTFail("expected pinProof")
+        }
+    }
+
+    func testUnknownTypeThrows() {
+        let payload: MsgPack = .map([
+            (.str("t"), .str("nonsense")),
+            (.str("d"), .map([])),
+        ])
+        XCTAssertThrowsError(try MessageInterpreter().interpret(MsgPackCodec.encode(payload)))
     }
 }

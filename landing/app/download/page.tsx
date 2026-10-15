@@ -5,6 +5,29 @@ export const metadata = {
   title: `Скачать — ${site.name}`,
 };
 
+function FileButton({
+  href,
+  label,
+  variant,
+}: {
+  href: string;
+  label: string;
+  variant: 'btn-primary' | 'btn-ghost';
+}) {
+  if (!site.releasesReady) {
+    return (
+      <span className="btn-soon mt-6 w-fit" aria-disabled="true">
+        {label} — скоро
+      </span>
+    );
+  }
+  return (
+    <a href={href} rel="noopener" className={`${variant} mt-6 w-fit`}>
+      Скачать {label}
+    </a>
+  );
+}
+
 export default function DownloadPage() {
   return (
     <section className="relative py-24">
@@ -14,13 +37,30 @@ export default function DownloadPage() {
           Два прямых файла. Никакой регистрации, аккаунта или App Store.
         </p>
 
-        <p className="mt-2 text-xs text-ink-500">
-          Сборки публикуются автоматически в{' '}
-          <a href={site.links.releases} className="underline">
-            GitHub Releases
-          </a>
-          . Кнопки ниже всегда тянут последний релиз.
-        </p>
+        {site.releasesReady ? (
+          <p className="mt-2 text-xs text-ink-400">
+            Сборки публикуются автоматически в{' '}
+            <a href={site.links.releases} className="underline">
+              GitHub Releases
+            </a>
+            . Кнопки ниже всегда тянут последний релиз.
+          </p>
+        ) : (
+          <div className="surface mt-6 p-5 text-sm text-ink-400">
+            <span className="font-semibold text-ink-100">Первый релиз готовится.</span>{' '}
+            Сборки APK и .dmg появятся в GitHub Releases — тогда кнопки ниже заработают.
+            Пока можно собрать приложения из{' '}
+            <a
+              href={site.links.github}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="text-accent-light hover:underline"
+            >
+              исходников на GitHub
+            </a>
+            .
+          </div>
+        )}
 
         <div className="surface mt-10 p-8">
           <h2 className="text-xl font-semibold">Android</h2>
@@ -35,13 +75,7 @@ export default function DownloadPage() {
             </li>
             <li>Открой APK через файловый менеджер и установи.</li>
           </ol>
-          <a
-            href={site.downloads.android}
-            rel="noopener"
-            className="btn-primary mt-6 w-fit"
-          >
-            Скачать padly-android.apk
-          </a>
+          <FileButton href={site.downloads.android} label="padly-android.apk" variant="btn-primary" />
         </div>
 
         <div className="surface mt-6 p-8">
@@ -61,12 +95,10 @@ export default function DownloadPage() {
               клавиши).
             </li>
           </ol>
-          <a href={site.downloads.mac} rel="noopener" className="btn-ghost mt-6 w-fit">
-            Скачать Padly.dmg
-          </a>
+          <FileButton href={site.downloads.mac} label="Padly.dmg" variant="btn-ghost" />
         </div>
 
-        <div className="mt-12 text-center">
+        <div className="mt-12 flex justify-center">
           <DownloadButtons />
         </div>
       </div>

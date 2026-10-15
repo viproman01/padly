@@ -5,7 +5,7 @@ struct SettingsWindow: View {
 
     var body: some View {
         TabView {
-            generalTab
+            GeneralSettingsTab(settings: state.settings)
                 .tabItem { Label("General", systemImage: "gearshape") }
 
             devicesTab
@@ -17,31 +17,38 @@ struct SettingsWindow: View {
         .padding(20)
     }
 
-    private var generalTab: some View {
-        Form {
-            Section("Cursor") {
-                Slider(value: $state.settings.cursorSensitivity, in: 0.3 ... 3.0) {
-                    Text("Sensitivity")
-                } minimumValueLabel: {
-                    Text("0.3").font(.caption)
-                } maximumValueLabel: {
-                    Text("3.0").font(.caption)
+    private struct GeneralSettingsTab: View {
+        @ObservedObject var settings: SettingsStore
+
+        var body: some View {
+            Form {
+                Section("Cursor") {
+                    Slider(value: $settings.cursorSensitivity, in: 0.3 ... 3.0) {
+                        Text("Sensitivity")
+                    } minimumValueLabel: {
+                        Text("0.3").font(.caption)
+                    } maximumValueLabel: {
+                        Text("3.0").font(.caption)
+                    }
+                    Toggle("Natural scroll direction", isOn: $settings.naturalScroll)
                 }
-                Toggle("Natural scroll direction", isOn: $state.settings.naturalScroll)
-            }
-            Section("Tap to click") {
-                Toggle("Enable tap to click", isOn: $state.settings.tapToClick)
-                Slider(value: $state.settings.hapticStrength, in: 0 ... 1.0) {
-                    Text("Haptic feedback")
+                Section("Tap to click") {
+                    Toggle("Enable tap to click", isOn: $settings.tapToClick)
+                    Slider(value: $settings.hapticStrength, in: 0 ... 1.0) {
+                        Text("Haptic feedback")
+                    }
+                }
+                Section("Network") {
+                    Stepper("Port: \(settings.preferredPort)",
+                            value: $settings.preferredPort,
+                            in: 1024 ... 65534)
+                    Text("Browser uses the next port. Restart Padly after changing the port.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
-            Section("Network") {
-                Stepper("Port: \(state.settings.preferredPort)",
-                        value: $state.settings.preferredPort,
-                        in: 1024 ... 65535)
-            }
+            .formStyle(.grouped)
         }
-        .formStyle(.grouped)
     }
 
     private var devicesTab: some View {
@@ -72,16 +79,21 @@ struct SettingsWindow: View {
 
     private var pairingTab: some View {
         VStack(spacing: 16) {
-            Text("Scan with Padly on your phone")
+            Text("Scan with Padly on your Android phone")
                 .font(.headline)
 
             if let payload = state.qrPayload {
                 QRImageView(payload: payload)
                     .frame(width: 240, height: 240)
             } else {
-                Button("Generate Pairing QR") {
+                Button("Generate Pairing PIN") {
                     state.pairing.beginQrPairing(state: state)
                 }
+            }
+
+            if let address = state.browserURL, let url = URL(string: address) {
+                Link("Browser touchpad: \(address)", destination: url)
+                    .font(.caption)
             }
 
             if let pin = state.currentPin {

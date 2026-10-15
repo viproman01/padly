@@ -1,29 +1,28 @@
 import Foundation
 
-/// All decoded message shapes after Decoder validates the frame.
+/// All decoded message shapes after the secure channel opens a frame.
 enum PadlyMessage {
-    case hello(Hello)
-    case pinAttempt(PinAttempt)
+    case pinProof(Data)
     case ping(ts: UInt64)
     case cursorMove(dx: Float, dy: Float, ts: UInt64)
     case cursorClick(button: MouseButton, down: Bool, ts: UInt64)
     case scroll(dx: Float, dy: Float, momentum: Bool, ts: UInt64)
     case gesture(Gesture)
     case key(KeyEvent)
+    case text(String)
     case presenter(PresenterAction)
     case bye(reason: String)
 }
 
-struct Hello {
+/// Plaintext handshake message: first frame from the phone, carries its
+/// identity and ephemeral public key. Not encrypted — nothing secret yet.
+struct HelloE {
     let deviceId: String
     let deviceName: String
     let appVer: String
     let capabilities: [String]
-}
-
-struct PinAttempt {
-    let hash: Data
-    let salt: Data
+    /// Uncompressed P-256 point, 65 bytes.
+    let publicKey: Data
 }
 
 enum MouseButton: UInt8 {
@@ -67,8 +66,8 @@ struct PresenterAction {
 struct PairedDevice: Identifiable, Codable, Equatable {
     let id: String
     var name: String
-    var hmacKey: Data
-    var certPin: Data
+    /// Long-term key mixed into the HKDF on reconnect (mutual auth).
+    var ltk: Data
     var lastSeen: Date
 }
 

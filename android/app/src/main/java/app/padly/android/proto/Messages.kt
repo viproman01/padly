@@ -10,22 +10,14 @@ import kotlinx.serialization.Serializable
 sealed interface PadlyMessage {
     val ts: ULong
 
-    data class Hello(
-        val deviceId: String,
-        val deviceName: String,
-        val appVer: String,
-        val capabilities: List<String>,
-        override val ts: ULong = 0u,
-    ) : PadlyMessage
-
-    data class PinAttempt(
-        val pinHash: ByteArray,
-        val salt: ByteArray,
+    /** Encrypted pin proof: HMAC-SHA256(sessionKey, "padly-pin-v2" || pin). */
+    data class PinProof(
+        val proof: ByteArray,
         override val ts: ULong = 0u,
     ) : PadlyMessage {
-        override fun equals(other: Any?): Boolean = other is PinAttempt &&
-            pinHash.contentEquals(other.pinHash) && salt.contentEquals(other.salt) && ts == other.ts
-        override fun hashCode(): Int = pinHash.contentHashCode() * 31 + salt.contentHashCode()
+        override fun equals(other: Any?): Boolean = other is PinProof &&
+            proof.contentEquals(other.proof) && ts == other.ts
+        override fun hashCode(): Int = proof.contentHashCode()
     }
 
     data class Ping(override val ts: ULong) : PadlyMessage
@@ -38,6 +30,8 @@ sealed interface PadlyMessage {
         override fun hashCode(): Int = kind.hashCode() * 31 + phase.hashCode()
     }
     data class Key(val code: UShort, val modifiers: UByte, val down: Boolean, override val ts: ULong) : PadlyMessage
+    /** Literal text typed on the Mac as Unicode — any language, independent of the Mac's keyboard layout. */
+    data class Text(val text: String, override val ts: ULong) : PadlyMessage
     data class Presenter(val kind: PresenterKind, val x: Float?, val y: Float?, override val ts: ULong) : PadlyMessage
     data class Bye(val reason: String, override val ts: ULong = 0u) : PadlyMessage
 }
@@ -62,9 +56,33 @@ data class PairingPayload(
     val ip: String,
     val port: Int,
     val serverId: String,
-    val certFingerprint: String,
-    val bootstrapToken: String,
+    val name: String = "Mac",
 )
+
+/** Inbound messages the Mac sends to the phone. */
+sealed interface ServerMessage {
+    /** Plaintext handshake reply: Mac identity + its ephemeral public key. */
+    data class WelcomeE(
+        val serverId: String,
+        val name: String,
+        val serverVer: String,
+        val publicKey: ByteArray,
+        val known: Boolean,
+    ) : ServerMessage {
+        override fun equals(other: Any?): Boolean = other is WelcomeE &&
+            serverId == other.serverId && publicKey.contentEquals(other.publicKey)
+        override fun hashCode(): Int = serverId.hashCode()
+    }
+
+    data class Welcome(val accepted: Boolean, val requirePin: Boolean) : ServerMessage
+    data class PairOk(val ltk: ByteArray) : ServerMessage {
+        override fun equals(other: Any?): Boolean = other is PairOk && ltk.contentEquals(other.ltk)
+        override fun hashCode(): Int = ltk.contentHashCode()
+    }
+    data class PairFail(val reason: String, val attemptsLeft: Long) : ServerMessage
+    data class Pong(val ts: ULong, val serverTs: ULong) : ServerMessage
+    data class Bye(val reason: String) : ServerMessage
+}
 
 object ModifierBits {
     const val CMD: UByte = 1u

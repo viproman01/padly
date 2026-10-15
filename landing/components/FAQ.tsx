@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { site } from '@/lib/site';
 
 const items = [
   {
@@ -17,7 +18,7 @@ const items = [
   },
   {
     q: 'Безопасно ли это?',
-    a: 'TLS 1.3 с pinning сертификата, HMAC-SHA256 на каждом фрейме, 6-значный PIN при первой паре. Никаких облаков — всё локально. Код открытый, можно проверить.',
+    a: 'ECDH-хендшейк (P-256) + AES-256-GCM шифрование каждого кадра, 6-значный PIN при первой паре защищает от MITM. Никаких облаков — всё локально. Код открытый, можно проверить.',
   },
   {
     q: 'Это open source?',
@@ -44,9 +45,14 @@ export function FAQ() {
         <div className="mx-auto max-w-2xl text-center">
           <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">FAQ</h2>
           <p className="mt-3 text-ink-400">
-            Самые частые вопросы. Если чего-то нет — напиши на{' '}
-            <a className="text-accent-light hover:underline" href="mailto:hi@padly.app">
-              hi@padly.app
+            Самые частые вопросы. Если чего-то нет — задай вопрос в{' '}
+            <a
+              className="text-accent-light hover:underline"
+              href={site.links.issues}
+              target="_blank"
+              rel="noreferrer noopener"
+            >
+              issues на GitHub
             </a>
             .
           </p>

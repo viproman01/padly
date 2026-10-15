@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#101314">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Padly — тачпад для Mac</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <main class="app">
+    <header class="header">
+      <a class="brand" href="/" aria-label="Padly, главная"><span class="brand-symbol" aria-hidden="true">p</span>padly<span class="brand-label">WEB</span></a>
+      <button id="connection-button" class="connection-button" type="button">Подключить</button>
+    </header>
+
+    <section class="intro" aria-labelledby="page-title">
+      <div><p class="eyebrow">ВАШ MAC. ПОД РУКОЙ.</p><h1 id="page-title">Всё под контролем<span>.</span></h1></div>
+      <div id="status" class="status" data-state="disconnected" role="status" aria-live="polite"><span class="status-dot" aria-hidden="true"></span><span id="status-text">Готов к подключению</span></div>
+    </section>
+
+    <section id="pairing" class="pairing" hidden aria-labelledby="pairing-title">
+      <div><p class="eyebrow">БЕЗОПАСНОЕ ПОДКЛЮЧЕНИЕ</p><h2 id="pairing-title">Введите PIN с экрана Mac</h2><p id="pin-help">Откройте Padly на Mac — код появится в окне подключения.</p></div>
+      <form id="pin-form" class="pin-form">
+        <label class="sr-only" for="pin">Шестизначный PIN</label>
+        <input id="pin" name="pin" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" placeholder="000000" required aria-describedby="pin-help" enterkeyhint="go">
+        <button id="pin-submit" class="primary-button" type="submit">Подключиться <span aria-hidden="true">↗</span></button>
+      </form>
+    </section>
+
+    <section class="workspace" aria-label="Управление Mac">
+      <div class="surface-heading"><span><span class="tiny-cross" aria-hidden="true">✣</span> ТАЧПАД</span><span id="surface-state">ОЖИДАНИЕ MAC</span></div>
+      <div id="touchpad" class="touchpad" data-enabled="false" role="application" aria-label="Тачпад: один палец — курсор, касание — левый клик, два пальца — прокрутка и правый клик" tabindex="0">
+        <span class="corner corner-tl" aria-hidden="true"></span><span class="corner corner-tr" aria-hidden="true"></span><span class="corner corner-bl" aria-hidden="true"></span><span class="corner corner-br" aria-hidden="true"></span>
+        <div class="surface-center" aria-hidden="true"><svg width="50" height="50" viewBox="0 0 50 50" fill="none"><path d="M17 33V18a3 3 0 0 1 6 0v9-13a3 3 0 0 1 6 0v13-9a3 3 0 0 1 6 0v14-7a3 3 0 0 1 6 0v9c0 8-5 13-12 13h-2c-4 0-7-2-10-6l-6-9a3 3 0 0 1 5-3l5 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" transform="translate(-4 -3)"/></svg><span id="surface-label">Место для ваших жестов</span><small>Один палец — курсор · Два — прокрутка</small></div>
+        <span class="surface-detail" aria-hidden="true">PADLY PRECISION SURFACE</span>
+      </div>
+      <div class="mouse-buttons"><button id="left-button" class="mouse-button" type="button" disabled><span>Левый клик</span><small>Удерживайте для перетаскивания</small><span class="mouse-icon" aria-hidden="true">↖</span></button><button id="right-button" class="mouse-button" type="button" disabled><span>Правый клик</span><small>Или коснитесь двумя пальцами</small><span class="mouse-icon" aria-hidden="true">↗</span></button></div>
+      <div class="sensitivity"><label for="sensitivity">Чувствительность</label><input id="sensitivity" type="range" min="0.5" max="3" step="0.1" value="1.5"><output id="sensitivity-value" for="sensitivity">1,5×</output></div>
+    </section>
+
+    <section class="keyboard-panel" aria-labelledby="keyboard-title">
+      <div class="panel-heading"><h2 id="keyboard-title">Текст и клавиши</h2><span class="panel-badge">⌨</span></div>
+      <form id="text-form" class="text-form"><label class="sr-only" for="text-input">Текст для отправки на Mac</label><input id="text-input" name="text" type="text" placeholder="Напечатайте что-нибудь…" maxlength="1000" autocomplete="off" enterkeyhint="send" disabled><button id="text-submit" type="submit" aria-label="Отправить текст на Mac" disabled>Отправить <span aria-hidden="true">↗</span></button></form>
+      <div class="keys" aria-label="Клавиши Mac"><button type="button" data-key="41" disabled>esc</button><button type="button" data-key="42" aria-label="Backspace" disabled>⌫</button><button type="button" data-key="40" disabled>enter <span aria-hidden="true">↵</span></button><span class="key-spacer"></span><button type="button" data-key="80" aria-label="Стрелка влево" disabled>←</button><button type="button" data-key="82" aria-label="Стрелка вверх" disabled>↑</button><button type="button" data-key="81" aria-label="Стрелка вниз" disabled>↓</button><button type="button" data-key="79" aria-label="Стрелка вправо" disabled>→</button></div>
+    </section>
+
+    <footer class="footer"><span><span class="network-icon" aria-hidden="true">⌁</span> Телефон и Mac в одной сети Wi-Fi</span><span>Без установки на телефон</span></footer>
+  </main>
+</body>
+</html>

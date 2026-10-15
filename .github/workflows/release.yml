@@ -1,0 +1,142 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v0.1.0)"
+        required: true
+        default: "v0.1.0-manual"
+
+jobs:
+  mac:
+    name: Build macOS .dmg
+    runs-on: macos-14
+    defaults:
+      run:
+        working-directory: mac
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show Swift toolchain
+        run: swift --version
+
+      - name: Run tests
+        run: swift test
+
+      - name: Build Padly.app (universal, ad-hoc signed)
+        env:
+          UNIVERSAL: "1"
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: ./scripts/make-app.sh "${TAG#v}"
+
+      - name: Create .dmg
+        run: |
+          set -euxo pipefail
+          mkdir -p out
+          hdiutil create -volname "Padly" \
+            -srcfolder build/Padly.app \
+            -ov -format UDZO out/Padly.dmg
+
+      - name: Upload dmg artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: padly-mac
+          path: mac/out/Padly.dmg
+          if-no-files-found: error
+
+  android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10"
+
+      - name: Generate throwaway release keystore
+        run: |
+          set -euxo pipefail
+          keytool -genkey -v \
+            -keystore release.keystore \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -alias padly \
+            -storepass padly-release \
+            -keypass padly-release \
+            -dname "CN=Padly, OU=Release, O=Padly, L=Almaty, S=Almaty, C=KZ"
+          cat > keystore.properties <<EOF
+          storeFile=$(pwd)/release.keystore
+          storePassword=padly-release
+          keyAlias=padly
+          keyPassword=padly-release
+          EOF
+
+      - name: Build release APK
+        run: gradle :app:assembleRelease --no-daemon --stacktrace
+
+      - name: Rename APK
+        run: |
+          set -euxo pipefail
+          mkdir -p out
+          cp app/build/outputs/apk/release/app-release.apk out/padly-android.apk
+
+      - name: Upload apk artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: padly-android
+          path: android/out/padly-android.apk
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs: [mac, android]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: padly-mac
+          path: dist
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: padly-android
+          path: dist
+
+      - name: List artifacts
+        run: ls -la dist
+
+      - name: Resolve tag name
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "name=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create / update release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.name }}
+          name: Padly ${{ steps.tag.outputs.name }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            dist/Padly.dmg
+            dist/padly-android.apk

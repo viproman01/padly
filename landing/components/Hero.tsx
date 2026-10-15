@@ -18,7 +18,7 @@ export function Hero() {
           className="inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/10 px-3 py-1 text-xs font-medium text-accent-light"
         >
           <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse-soft" />
-          Open beta · v{site.version.android}
+          {site.releasesReady ? 'Open beta' : 'Первый релиз скоро'} · v{site.version.android}
         </motion.div>
 
         <motion.h1

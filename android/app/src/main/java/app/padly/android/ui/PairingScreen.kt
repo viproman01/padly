@@ -2,7 +2,8 @@ package app.padly.android.ui
 
 import android.util.Base64
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,13 +16,15 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,8 +40,14 @@ import app.padly.android.auth.Pairing
 import app.padly.android.auth.SecretStore
 import app.padly.android.proto.PairingPayload
 import app.padly.android.transport.Discovery
+import app.padly.android.transport.WSClient
 import kotlinx.coroutines.flow.collectLatest
 
+/**
+ * Pairing flow: pick a Mac (mDNS / QR link / manual IP), connect, then type
+ * the PIN the Mac displays. On pairOk the long-term key is stored and the
+ * caller flips to the trackpad.
+ */
 @Composable
 fun PairingScreen(initialLink: String?, onPaired: () -> Unit) {
     val context = LocalContext.current
@@ -46,68 +55,61 @@ fun PairingScreen(initialLink: String?, onPaired: () -> Unit) {
 
     var step by remember { mutableStateOf<Step>(Step.Choose) }
     var ipInput by remember { mutableStateOf("") }
-    var pinInput by remember { mutableStateOf("") }
-    var current by remember { mutableStateOf<PairingPayload?>(null) }
+    var target by remember { mutableStateOf<PairingPayload?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(initialLink) {
         if (initialLink != null) {
             val parsed = Pairing.parseLink(initialLink)
             if (parsed != null) {
-                current = parsed
-                step = Step.EnterPin
+                target = parsed
+                step = Step.Connect
             } else {
-                error = "Bad pairing link"
+                error = "Неверная ссылка для пары"
             }
         }
     }
 
     Column(modifier = Modifier.fillMaxSize().background(Color(0xFF0E0E11)).padding(20.dp)) {
-        Text("Pair with a Mac", color = Color(0xFFEDEDEF), style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Bold))
+        Text("Подключение к Mac", color = Color(0xFFEDEDEF), style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Bold))
         Spacer(modifier = Modifier.padding(top = 6.dp))
-        Text("Run Padly on the Mac, then choose a method below.", color = Color(0xFF8C8C97), style = TextStyle(fontSize = 13.sp))
+        Text("Открой Padly на Mac → «Подключить телефон…» — там появится PIN.", color = Color(0xFF8C8C97), style = TextStyle(fontSize = 13.sp))
 
         Spacer(modifier = Modifier.padding(top = 24.dp))
 
         when (step) {
             Step.Choose -> {
-                MethodCard(title = "Find on this WiFi", desc = "Auto-discover via mDNS") { step = Step.Discover }
+                MethodCard(title = "Найти в этой WiFi", desc = "Телефон и Mac должны быть в одной сети") { step = Step.Discover }
                 Spacer(modifier = Modifier.padding(top = 12.dp))
-                MethodCard(title = "Scan QR code", desc = "Open the QR on the Mac and scan with the camera") { step = Step.Scan }
-                Spacer(modifier = Modifier.padding(top = 12.dp))
-                MethodCard(title = "Enter IP manually", desc = "If discovery fails — type Mac's IP and port") { step = Step.Manual }
+                MethodCard(title = "Ввести IP вручную", desc = "Если поиск не нашёл — IP показан в меню Padly на Mac") { step = Step.Manual }
             }
-            Step.Discover -> DiscoverPanel(onResolved = { ip, port, id, fp ->
-                current = PairingPayload(ip, port, id, fp, bootstrapToken = "")
-                step = Step.EnterPin
+            Step.Discover -> DiscoverPanel(onResolved = { ip, port, id, name ->
+                target = PairingPayload(ip = ip, port = port, serverId = id, name = name)
+                step = Step.Connect
             })
-            Step.Scan -> {
-                Text("QR scan requires the camera permission. Point at the QR shown by Padly on your Mac.", color = Color(0xFFEDEDEF))
-                // Real CameraX+MLKit scanner wires up here. For the first cut, fall back to manual.
-                Spacer(modifier = Modifier.padding(top = 12.dp))
-                OutlinedButton(onClick = { step = Step.Manual }) { Text("Skip — enter manually") }
-            }
             Step.Manual -> ManualPanel(value = ipInput, onChange = { ipInput = it }, onContinue = {
-                val (ip, port) = ipInput.split(":").let { it[0] to (it.getOrNull(1)?.toIntOrNull() ?: 47821) }
-                current = PairingPayload(ip = ip, port = port, serverId = "", certFingerprint = "", bootstrapToken = "")
-                step = Step.EnterPin
+                val (ip, port) = ipInput.split(":").let { it[0].trim() to (it.getOrNull(1)?.trim()?.toIntOrNull() ?: 47821) }
+                if (ip.isNotEmpty()) {
+                    target = PairingPayload(ip = ip, port = port, serverId = "", name = "Mac")
+                    step = Step.Connect
+                }
             })
-            Step.EnterPin -> PinPanel(pin = pinInput, onChange = { pinInput = it }, onSubmit = {
-                val cur = current ?: return@PinPanel
-                // Build PinAttempt and persist a paired entry on success.
-                val attempt = Pairing.buildPinAttempt(pinInput)
-                val record = SecretStore.PairedMac(
-                    serverId = cur.serverId,
-                    name = "Mac",
-                    ip = cur.ip,
-                    port = cur.port,
-                    certFingerprintSha256Hex = cur.certFingerprint,
-                    hmacKeyB64 = Base64.encodeToString(attempt.pinHash, Base64.NO_WRAP),
-                    lastSeenEpochMs = System.currentTimeMillis(),
-                )
-                store.upsert(record)
-                onPaired()
-            })
+            Step.Connect -> {
+                val payload = target
+                if (payload == null) {
+                    step = Step.Choose
+                } else {
+                    ConnectAndPinPanel(
+                        payload = payload,
+                        store = store,
+                        onPaired = onPaired,
+                        onError = { msg ->
+                            error = msg
+                            step = Step.Choose
+                        },
+                    )
+                }
+            }
         }
 
         if (error != null) {
@@ -120,9 +122,100 @@ fun PairingScreen(initialLink: String?, onPaired: () -> Unit) {
 private sealed interface Step {
     data object Choose : Step
     data object Discover : Step
-    data object Scan : Step
     data object Manual : Step
-    data object EnterPin : Step
+    data object Connect : Step
+}
+
+/** Owns a WSClient for the duration of the pairing attempt. */
+@Composable
+private fun ConnectAndPinPanel(
+    payload: PairingPayload,
+    store: SecretStore,
+    onPaired: () -> Unit,
+    onError: (String) -> Unit,
+) {
+    val context = LocalContext.current
+    var pin by remember { mutableStateOf("") }
+
+    val client = remember(payload) {
+        WSClient(
+            host = payload.ip,
+            port = payload.port,
+            deviceId = store.deviceId(),
+            deviceName = android.os.Build.MODEL ?: "Android",
+            ltk = null,
+            onPaired = { serverId, name, ltk ->
+                store.upsert(
+                    SecretStore.PairedMac(
+                        serverId = serverId,
+                        name = name,
+                        ip = payload.ip,
+                        port = payload.port,
+                        ltkB64 = Base64.encodeToString(ltk, Base64.NO_WRAP),
+                        lastSeenEpochMs = System.currentTimeMillis(),
+                    ),
+                )
+            },
+        ).also { it.connect() }
+    }
+    DisposableEffect(client) {
+        onDispose { client.close() }
+    }
+
+    val state by client.state.collectAsState()
+
+    LaunchedEffect(state) {
+        when (val s = state) {
+            is WSClient.State.Ready -> {
+                client.close()
+                onPaired()
+            }
+            is WSClient.State.Failed -> onError(friendlyError(s.reason))
+            else -> {}
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+        when (val s = state) {
+            is WSClient.State.Connecting, WSClient.State.Handshaking, WSClient.State.Idle -> {
+                CircularProgressIndicator(color = Color(0xFF7C5CFF))
+                Spacer(modifier = Modifier.padding(top = 12.dp))
+                Text("Подключаюсь к ${payload.name}…", color = Color(0xFF8C8C97))
+            }
+            is WSClient.State.NeedPin, is WSClient.State.PinRejected -> {
+                if (s is WSClient.State.PinRejected) {
+                    Text("Неверный PIN — осталось попыток: ${s.attemptsLeft}", color = Color(0xFFFB7185), style = TextStyle(fontSize = 12.sp))
+                    Spacer(modifier = Modifier.padding(top = 8.dp))
+                }
+                Text("Введи PIN из меню Padly на Mac", color = Color(0xFFEDEDEF))
+                Spacer(modifier = Modifier.padding(top = 12.dp))
+                OutlinedTextField(
+                    value = pin,
+                    onValueChange = { if (it.length <= 6) pin = it.filter { ch -> ch.isDigit() } },
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color(0xFF1F1F24),
+                        unfocusedContainerColor = Color(0xFF1F1F24),
+                        focusedTextColor = Color(0xFFEDEDEF),
+                        unfocusedTextColor = Color(0xFFEDEDEF),
+                    ),
+                    label = { Text("6 цифр") },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(modifier = Modifier.padding(top = 12.dp))
+                Button(
+                    onClick = { client.submitPin(pin) },
+                    enabled = pin.length == 6,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7C5CFF)),
+                ) { Text("Подтвердить") }
+            }
+            is WSClient.State.Ready -> {
+                Text("Готово!", color = Color(0xFF34D399))
+            }
+            is WSClient.State.Failed -> {
+                Text(s.reason, color = Color(0xFFFB7185))
+            }
+        }
+    }
 }
 
 @Composable
@@ -152,7 +245,7 @@ private fun DiscoverPanel(onResolved: (String, Int, String, String) -> Unit) {
         }
     }
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text("Searching on local network…", color = Color(0xFF8C8C97), style = TextStyle(fontSize = 12.sp))
+        Text("Ищу Mac в сети…", color = Color(0xFF8C8C97), style = TextStyle(fontSize = 12.sp))
         results.forEach { f ->
             Spacer(modifier = Modifier.padding(top = 8.dp))
             Card(
@@ -165,7 +258,7 @@ private fun DiscoverPanel(onResolved: (String, Int, String, String) -> Unit) {
                         Text(f.name, color = Color(0xFFEDEDEF))
                         Text("${f.host}:${f.port}", color = Color(0xFF8C8C97), style = TextStyle(fontSize = 11.sp))
                     }
-                    Button(onClick = { onResolved(f.host, f.port, f.serverId ?: "", f.certFingerprint ?: "") }) { Text("Pair") }
+                    Button(onClick = { onResolved(f.host, f.port, f.serverId ?: "", f.name) }) { Text("Выбрать") }
                 }
             }
         }
@@ -178,7 +271,7 @@ private fun ManualPanel(value: String, onChange: (String) -> Unit, onContinue: (
         OutlinedTextField(
             value = value,
             onValueChange = onChange,
-            label = { Text("IP or IP:port") },
+            label = { Text("IP или IP:порт") },
             colors = TextFieldDefaults.colors(
                 focusedContainerColor = Color(0xFF1F1F24),
                 unfocusedContainerColor = Color(0xFF1F1F24),
@@ -189,40 +282,23 @@ private fun ManualPanel(value: String, onChange: (String) -> Unit, onContinue: (
         )
         Spacer(modifier = Modifier.padding(top = 12.dp))
         Button(onClick = onContinue, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7C5CFF))) {
-            Text("Continue")
+            Text("Дальше")
         }
     }
 }
 
 @Composable
-private fun PinPanel(pin: String, onChange: (String) -> Unit, onSubmit: () -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
-        Text("Enter PIN shown on your Mac", color = Color(0xFFEDEDEF))
-        Spacer(modifier = Modifier.padding(top = 12.dp))
-        OutlinedTextField(
-            value = pin,
-            onValueChange = { if (it.length <= 6) onChange(it.filter { ch -> ch.isDigit() }) },
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = Color(0xFF1F1F24),
-                unfocusedContainerColor = Color(0xFF1F1F24),
-                focusedTextColor = Color(0xFFEDEDEF),
-                unfocusedTextColor = Color(0xFFEDEDEF),
-            ),
-            label = { Text("6 digits") },
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Spacer(modifier = Modifier.padding(top = 12.dp))
-        Button(onClick = onSubmit, enabled = pin.length == 6, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7C5CFF))) {
-            Text("Confirm")
-        }
-    }
-}
-
-@Composable
-private fun Modifier.clickableNoRipple(onClick: () -> Unit): Modifier = then(
-    androidx.compose.foundation.clickable(
-        interactionSource = androidx.compose.foundation.interaction.MutableInteractionSource(),
+private fun Modifier.clickableNoRipple(onClick: () -> Unit): Modifier =
+    clickable(
+        interactionSource = remember { MutableInteractionSource() },
         indication = null,
         onClick = onClick,
-    ),
-)
+    )
+
+/** Human wording for WSClient failure reasons shown on the pairing screen. */
+private fun friendlyError(reason: String): String = when {
+    "pairing-not-active" in reason -> "На Mac не открыт PIN: нажми «Подключить телефон…» в меню Padly и попробуй снова."
+    "expired" in reason -> "PIN истёк — возьми новый в меню Padly на Mac."
+    "locked" in reason -> "Слишком много неверных PIN — подожди минуту."
+    else -> "Не удалось подключиться к Mac. Проверь, что Padly запущен и оба устройства в одной WiFi. ($reason)"
+}

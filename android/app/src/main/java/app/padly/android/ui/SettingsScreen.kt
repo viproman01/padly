@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -30,7 +31,7 @@ import app.padly.android.settings.SettingsStore
 import kotlinx.coroutines.launch
 
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(onForget: () -> Unit) {
     val context = LocalContext.current
     val settings = remember { SettingsStore(context) }
     val store = remember { SecretStore(context) }
@@ -71,7 +72,9 @@ fun SettingsScreen() {
                     Text(mac.name, color = Color(0xFFEDEDEF))
                     Text("${mac.ip}:${mac.port}", color = Color(0xFF8C8C97), style = TextStyle(fontSize = 11.sp))
                 }
-                Text("Forget", color = Color(0xFFFB7185), style = TextStyle(fontSize = 13.sp), modifier = Modifier.padding(start = 8.dp))
+                TextButton(onClick = onForget) {
+                    Text("Forget", color = Color(0xFFFB7185), style = TextStyle(fontSize = 13.sp))
+                }
             }
         }
         if (store.list().isEmpty()) {

@@ -1,15 +1,13 @@
-import Foundation
 import AppKit
+import CryptoKit
+import Foundation
 
 /// Drives the pairing flow:
-/// - generates a one-shot bootstrap token (used as initial HMAC key)
 /// - generates the 6-digit PIN the user types on the phone
-/// - validates PIN attempts and, on success, emits a fresh persistent hmacKey
+/// - validates PIN proofs bound to the ECDH session key (v2 protocol)
 final class Pairing {
     private let keyStore: KeyStore
-    private var pendingBootstrap: Data?
     private var pendingPin: String?
-    private var pendingSalt: Data?
     private var pendingExpiresAt: Date?
 
     /// Failed-attempt counter for brute-force lockout.
@@ -20,64 +18,59 @@ final class Pairing {
         self.keyStore = keyStore
     }
 
-    /// Begin a QR-based pairing: generate fresh PIN + bootstrap token + QR payload, hand to state.
+    /// Open a pairing window: fresh PIN + QR payload with connect coordinates.
+    /// The QR carries no secrets — the PIN typed on the phone is what binds
+    /// the ECDH channel to the human in front of both screens.
     func beginQrPairing(state: AppState) {
-        let bootstrap = HMACUtil.randomBytes(16)
         let pin = String(format: "%06d", Int.random(in: 0 ..< 1_000_000))
-        let salt = HMACUtil.randomBytes(16)
-        let expiry = Date().addingTimeInterval(60)
-
-        pendingBootstrap = bootstrap
+        let expiresAt = Date().addingTimeInterval(120)
         pendingPin = pin
-        pendingSalt = salt
-        pendingExpiresAt = expiry
+        pendingExpiresAt = expiresAt
         pinAttempts = 0
         lockoutUntil = nil
 
         let payload = QRGenerator.payload(
             serverId: keyStore.serverId,
+            name: Host.current().localizedName ?? "Mac",
             port: state.settings.preferredPort,
-            ipHint: NetworkUtil.bestLocalIP(),
-            certFingerprint: TLSIdentity.shared.certificateFingerprint(),
-            bootstrapToken: bootstrap
+            ipHint: NetworkUtil.bestLocalIP()
         )
         DispatchQueue.main.async {
             state.qrPayload = payload
             state.currentPin = pin
+            state.pinExpiresAt = expiresAt
         }
     }
 
-    /// Returns the bootstrap key while it is still valid, else nil.
-    func currentBootstrapKey() -> Data? {
-        guard let expiry = pendingExpiresAt, expiry > Date() else { return nil }
-        return pendingBootstrap
+    /// True while a pairing window (PIN) is open and unexpired.
+    var hasActivePin: Bool {
+        guard pendingPin != nil, let expiry = pendingExpiresAt else { return false }
+        return expiry > Date()
     }
 
-    /// Check a PIN attempt from the phone.
-    /// `incomingHash` = HMAC-SHA256(pin, incomingSalt). We recompute on our side with our salt
-    /// to ensure both sides bind to the same salt.
     enum PinResult {
-        case ok(hmacKey: Data)
+        case ok
         case retry(attemptsLeft: Int)
         case lockedOut(until: Date)
         case expired
     }
 
-    func tryPin(incomingHash: Data, incomingSalt: Data) -> PinResult {
+    /// Verify the phone's proof = HMAC-SHA256(sessionKey, "padly-pin-v2" || pin).
+    /// Binding the proof to the session key defeats an active MITM: an attacker
+    /// terminating two separate ECDH channels cannot transplant the proof.
+    func tryPinProof(_ proof: Data, sessionKey: SymmetricKey) -> PinResult {
         if let lock = lockoutUntil, lock > Date() { return .lockedOut(until: lock) }
         guard let pin = pendingPin,
               let expiry = pendingExpiresAt,
               expiry > Date() else { return .expired }
 
-        let recomputed = HMACUtil.sha256(key: Data(pin.utf8), parts: [incomingSalt])
-        if HMACUtil.equal(recomputed, incomingHash) {
-            let hmacKey = HMACUtil.randomBytes(32)
-            pendingBootstrap = nil
+        let expected = HandshakeCrypto.pinProof(sessionKey: sessionKey, pin: pin)
+        if HMACUtil.equal(expected, proof) {
             pendingPin = nil
             pendingExpiresAt = nil
             pinAttempts = 0
             lockoutUntil = nil
-            return .ok(hmacKey: hmacKey)
+            return .ok
         } else {
             pinAttempts += 1
             if pinAttempts >= 5 {

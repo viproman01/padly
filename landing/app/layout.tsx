@@ -5,6 +5,7 @@ import { Footer } from '@/components/Footer';
 import { site } from '@/lib/site';
 
 export const metadata: Metadata = {
+  metadataBase: new URL(site.url),
   title: `${site.name} — ${site.tagline}`,
   description: site.subline,
   openGraph: {

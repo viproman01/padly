@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Padly talks to the Mac over plain ws:// on the local network. Confidentiality
+  and integrity come from the frame layer (ECDH + AES-256-GCM, see
+  proto/README.md), so cleartext at the socket level is intentional. The Mac's
+  LAN IP is not known in advance, so this cannot be scoped to a domain.
+  Without this, Android 9+ refuses the connection outright.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

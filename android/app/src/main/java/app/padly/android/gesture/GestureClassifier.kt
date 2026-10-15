@@ -1,119 +1,202 @@
 package app.padly.android.gesture
 
-import android.view.MotionEvent
 import kotlin.math.abs
 import kotlin.math.hypot
+import kotlin.math.max
 
 /**
- * Stateful multi-touch classifier. Receives raw [MotionEvent]s and emits a
- * stream of high-level [Action] values that the screen forwards to WSClient.
+ * Stateful multi-touch classifier. Pure Kotlin (no android.view) so it is
+ * unit-testable on the JVM; TrackpadSurface converts MotionEvents into
+ * [Phase] + the list of pointers still down after the event.
+ *
+ * One "gesture" spans first finger down → last finger up:
+ * - 1 finger moving → cursor deltas
+ * - quick tap with 1/2/3 fingers (by max fingers seen) → left/right/middle click
+ * - 2 fingers → locks into either scroll or pinch, never both
+ * - 3/4 fingers → one swipe per gesture once travel passes a threshold
+ * Any change in the set of fingers re-bases the centroid, so lifting or adding
+ * a finger never makes the cursor jump.
  */
-class GestureClassifier {
+class GestureClassifier(
+    private val tapTimeoutMs: Long = 250L,
+    private val multiTapTimeoutMs: Long = 300L,
+    private val tapSlopPx: Float = 12f,
+    private val swipeThresholdPx: Float = 120f,
+    private val scrollLockPx: Float = 12f,
+    private val pinchLockPx: Float = 50f,
+    private val pinchStep: Float = 1.15f,
+) {
+    enum class Phase { Down, PointerDown, Move, PointerUp, Up, Cancel }
+    data class Pointer(val id: Int, val x: Float, val y: Float)
+
     sealed interface Action {
         data class CursorMove(val dx: Float, val dy: Float) : Action
         data class Tap(val button: Button) : Action
+        /** Raw finger movement (screen coords, +y down); the Mac maps it to wheel direction. */
         data class Scroll(val dx: Float, val dy: Float) : Action
-        data class PinchUpdate(val scale: Float) : Action
+        /** Zoom step: > 1 zoom in, < 1 zoom out. Emitted every ~15% change in finger spread. */
+        data class Pinch(val scaleStep: Float) : Action
         data class Swipe3(val direction: Direction, val distancePx: Float) : Action
         data class Swipe4(val direction: Direction, val distancePx: Float) : Action
-        data object DoubleTap : Action
     }
 
     enum class Direction { Up, Down, Left, Right }
     enum class Button { Left, Right, Middle }
 
-    private var downTimeMs: Long = 0L
-    private var lastX = 0f
-    private var lastY = 0f
-    private var pointerCount = 0
-    private var initialPinchDistance = 0f
-    private var lastTapTimeMs = 0L
-    private var totalDx = 0f
-    private var totalDy = 0f
-    private val tapMoveSlopPx = 8f
-    private val tapTimeoutMs = 220L
-    private val doubleTapWindowMs = 300L
+    private enum class TwoMode { Undecided, Scroll, Pinch }
 
-    fun consume(event: MotionEvent, emit: (Action) -> Unit) {
-        when (event.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
-                downTimeMs = event.eventTime
-                lastX = event.x
-                lastY = event.y
-                totalDx = 0f
-                totalDy = 0f
-                pointerCount = 1
+    private var gestureStartMs = 0L
+    private var maxPointers = 0
+    private var travel = 0f
+    private var consumed = false // scroll/pinch/swipe happened → never a tap
+
+    private var lastIds: Set<Int> = emptySet()
+    private var lastCx = 0f
+    private var lastCy = 0f
+
+    private var twoMode = TwoMode.Undecided
+    private var twoTravel = 0f
+    private var spreadBase = 0f
+    private var pinchRef = 0f
+
+    private var swipeDx = 0f
+    private var swipeDy = 0f
+    private var swipeFired = false
+
+    fun onTouch(phase: Phase, pointers: List<Pointer>, timeMs: Long, emit: (Action) -> Unit) {
+        when (phase) {
+            Phase.Down -> {
+                resetGesture(timeMs)
+                maxPointers = max(1, pointers.size)
+                rebase(pointers)
             }
-            MotionEvent.ACTION_POINTER_DOWN -> {
-                pointerCount = event.pointerCount.coerceAtMost(4)
-                if (pointerCount == 2) {
-                    initialPinchDistance = pinchDistance(event)
-                }
+            Phase.PointerDown, Phase.PointerUp -> {
+                maxPointers = max(maxPointers, pointers.size)
+                rebase(pointers)
             }
-            MotionEvent.ACTION_MOVE -> {
-                handleMove(event, emit)
+            Phase.Move -> move(pointers, emit)
+            Phase.Up -> {
+                maybeTap(timeMs, emit)
+                resetGesture(timeMs)
             }
-            MotionEvent.ACTION_POINTER_UP -> {
-                pointerCount = (event.pointerCount - 1).coerceAtLeast(1)
-            }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                val duration = event.eventTime - downTimeMs
-                if (pointerCount == 1 && duration < tapTimeoutMs &&
-                    hypot(totalDx, totalDy) < tapMoveSlopPx) {
-                    if (event.eventTime - lastTapTimeMs < doubleTapWindowMs) emit(Action.DoubleTap)
-                    else emit(Action.Tap(Button.Left))
-                    lastTapTimeMs = event.eventTime
-                } else if (pointerCount == 2 && duration < tapTimeoutMs &&
-                    hypot(totalDx, totalDy) < tapMoveSlopPx) {
-                    emit(Action.Tap(Button.Right))
-                }
-                pointerCount = 0
-            }
+            Phase.Cancel -> resetGesture(timeMs)
         }
     }
 
-    private fun handleMove(event: MotionEvent, emit: (Action) -> Unit) {
-        if (pointerCount == 1) {
-            val dx = event.x - lastX
-            val dy = event.y - lastY
-            totalDx += abs(dx)
-            totalDy += abs(dy)
-            lastX = event.x; lastY = event.y
-            if (dx != 0f || dy != 0f) emit(Action.CursorMove(dx, dy))
+    private fun move(pointers: List<Pointer>, emit: (Action) -> Unit) {
+        if (pointers.isEmpty()) return
+        if (pointers.map { it.id }.toSet() != lastIds) {
+            rebase(pointers)
             return
         }
-        if (pointerCount == 2) {
-            val dx = event.x - lastX
-            val dy = event.y - lastY
-            lastX = event.x; lastY = event.y
-            emit(Action.Scroll(-dx, -dy))
-            val newDist = pinchDistance(event)
-            if (initialPinchDistance > 0f && abs(newDist - initialPinchDistance) > 30f) {
-                emit(Action.PinchUpdate(newDist / initialPinchDistance))
-            }
-            return
-        }
-        if (pointerCount == 3 || pointerCount == 4) {
-            val dx = event.x - lastX
-            val dy = event.y - lastY
-            lastX = event.x; lastY = event.y
-            val threshold = 80f
-            if (hypot(dx, dy) > threshold) {
-                val dir = when {
-                    abs(dx) > abs(dy) -> if (dx > 0) Direction.Right else Direction.Left
-                    else -> if (dy > 0) Direction.Down else Direction.Up
-                }
-                val dist = hypot(dx, dy)
-                if (pointerCount == 3) emit(Action.Swipe3(dir, dist))
-                else emit(Action.Swipe4(dir, dist))
-            }
+        val cx = pointers.sumOf { it.x.toDouble() }.toFloat() / pointers.size
+        val cy = pointers.sumOf { it.y.toDouble() }.toFloat() / pointers.size
+        val dx = cx - lastCx
+        val dy = cy - lastCy
+        lastCx = cx
+        lastCy = cy
+        travel += hypot(dx, dy)
+
+        when (pointers.size) {
+            1 -> if (dx != 0f || dy != 0f) emit(Action.CursorMove(dx, dy))
+            2 -> twoFinger(pointers, dx, dy, emit)
+            3, 4 -> swipe(pointers.size, dx, dy, emit)
+            else -> Unit
         }
     }
 
-    private fun pinchDistance(event: MotionEvent): Float {
-        if (event.pointerCount < 2) return 0f
-        val dx = event.getX(0) - event.getX(1)
-        val dy = event.getY(0) - event.getY(1)
-        return hypot(dx, dy)
+    private fun twoFinger(pointers: List<Pointer>, dx: Float, dy: Float, emit: (Action) -> Unit) {
+        val spread = spread(pointers)
+        when (twoMode) {
+            TwoMode.Undecided -> {
+                twoTravel += hypot(dx, dy)
+                val spreadChange = abs(spread - spreadBase)
+                if (spreadChange > pinchLockPx && spreadChange > twoTravel * 1.5f) {
+                    twoMode = TwoMode.Pinch
+                    consumed = true
+                    pinchRef = spreadBase
+                    pinchCheck(spread, emit)
+                } else if (twoTravel > scrollLockPx && twoTravel >= spreadChange) {
+                    twoMode = TwoMode.Scroll
+                    consumed = true
+                    emit(Action.Scroll(dx, dy))
+                }
+            }
+            TwoMode.Scroll -> if (dx != 0f || dy != 0f) emit(Action.Scroll(dx, dy))
+            TwoMode.Pinch -> pinchCheck(spread, emit)
+        }
+    }
+
+    private fun pinchCheck(spread: Float, emit: (Action) -> Unit) {
+        if (pinchRef <= 0f) {
+            pinchRef = spread
+            return
+        }
+        val ratio = spread / pinchRef
+        if (ratio >= pinchStep || ratio <= 1f / pinchStep) {
+            emit(Action.Pinch(ratio))
+            pinchRef = spread
+        }
+    }
+
+    private fun swipe(fingers: Int, dx: Float, dy: Float, emit: (Action) -> Unit) {
+        if (swipeFired) return
+        swipeDx += dx
+        swipeDy += dy
+        val dist = hypot(swipeDx, swipeDy)
+        if (dist < swipeThresholdPx) return
+        val dir = if (abs(swipeDx) > abs(swipeDy)) {
+            if (swipeDx > 0) Direction.Right else Direction.Left
+        } else {
+            if (swipeDy > 0) Direction.Down else Direction.Up
+        }
+        emit(if (fingers == 3) Action.Swipe3(dir, dist) else Action.Swipe4(dir, dist))
+        swipeFired = true
+        consumed = true
+    }
+
+    private fun maybeTap(timeMs: Long, emit: (Action) -> Unit) {
+        val timeout = if (maxPointers > 1) multiTapTimeoutMs else tapTimeoutMs
+        if (consumed || travel >= tapSlopPx || timeMs - gestureStartMs > timeout) return
+        when (maxPointers) {
+            1 -> emit(Action.Tap(Button.Left))
+            2 -> emit(Action.Tap(Button.Right))
+            3 -> emit(Action.Tap(Button.Middle))
+        }
+    }
+
+    /** New finger set: restart centroid tracking and per-finger-count accumulators. */
+    private fun rebase(pointers: List<Pointer>) {
+        lastIds = pointers.map { it.id }.toSet()
+        if (pointers.isNotEmpty()) {
+            lastCx = pointers.sumOf { it.x.toDouble() }.toFloat() / pointers.size
+            lastCy = pointers.sumOf { it.y.toDouble() }.toFloat() / pointers.size
+        }
+        twoMode = TwoMode.Undecided
+        twoTravel = 0f
+        spreadBase = if (pointers.size == 2) spread(pointers) else 0f
+        pinchRef = spreadBase
+        swipeDx = 0f
+        swipeDy = 0f
+    }
+
+    private fun resetGesture(timeMs: Long) {
+        gestureStartMs = timeMs
+        maxPointers = 0
+        travel = 0f
+        consumed = false
+        swipeFired = false
+        lastIds = emptySet()
+        twoMode = TwoMode.Undecided
+        twoTravel = 0f
+        spreadBase = 0f
+        pinchRef = 0f
+        swipeDx = 0f
+        swipeDy = 0f
+    }
+
+    private fun spread(pointers: List<Pointer>): Float {
+        if (pointers.size < 2) return 0f
+        return hypot(pointers[0].x - pointers[1].x, pointers[0].y - pointers[1].y)
     }
 }

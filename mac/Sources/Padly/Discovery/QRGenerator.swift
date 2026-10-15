@@ -5,19 +5,17 @@ import SwiftUI
 
 /// Encodes a pairing payload as a string and renders it to a QR code.
 /// Payload format (URL-style so Android can parse with stdlib):
-///   padly://pair?ip=...&port=...&id=...&fp=...&t=<base64-token>
+///   padly://pair?v=2&ip=...&port=...&id=...&name=...
+/// Carries no secrets — just connect coordinates. Security comes from the
+/// ECDH handshake + PIN proof.
 enum QRGenerator {
     static func payload(serverId: String,
+                        name: String,
                         port: Int,
-                        ipHint: String,
-                        certFingerprint: String,
-                        bootstrapToken: Data) -> String
+                        ipHint: String) -> String
     {
-        let token = bootstrapToken.base64EncodedString()
-            .replacingOccurrences(of: "+", with: "-")
-            .replacingOccurrences(of: "/", with: "_")
-            .trimmingCharacters(in: CharacterSet(charactersIn: "="))
-        return "padly://pair?ip=\(ipHint)&port=\(port)&id=\(serverId)&fp=\(certFingerprint)&t=\(token)"
+        let encodedName = name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "Mac"
+        return "padly://pair?v=2&ip=\(ipHint)&port=\(port)&id=\(serverId)&name=\(encodedName)"
     }
 
     static func image(from payload: String, size: CGFloat = 240) -> NSImage? {

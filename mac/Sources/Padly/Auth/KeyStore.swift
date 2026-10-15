@@ -5,8 +5,18 @@ import Security
 /// Each device record is stored as a generic password item, with the account =
 /// device id and the payload = JSON-encoded `PairedDevice`.
 final class KeyStore {
-    private let service = "app.padly.mac"
+    // ".v2": protocol v2 changed the PairedDevice schema (ltk replaces
+    // hmacKey/certPin), so v1 records are unreadable anyway — a fresh
+    // namespace also avoids Keychain ACL prompts for items left by old builds.
+    private let service = "app.padly.mac.v2"
     private let serverIdKey = "app.padly.mac.serverId"
+
+    /// PADLY_EPHEMERAL_KEYSTORE=1 swaps the Keychain for an in-memory dict.
+    /// Used by headless smoke tests and CI, where a rebuilt (re-signed) binary
+    /// would otherwise hang forever on a Keychain access prompt no one can see.
+    private let ephemeral = ProcessInfo.processInfo.environment["PADLY_EPHEMERAL_KEYSTORE"] == "1"
+    private var memory: [String: Data] = [:]
+    private let memoryLock = NSLock()
 
     /// Stable serverId used in mDNS TXT and QR. Generated once and persisted.
     private(set) lazy var serverId: String = {
@@ -27,6 +37,11 @@ final class KeyStore {
     }
 
     func forget(deviceId: String) {
+        if ephemeral {
+            memoryLock.lock(); defer { memoryLock.unlock() }
+            memory.removeValue(forKey: "device.\(deviceId)")
+            return
+        }
         let q: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -41,6 +56,13 @@ final class KeyStore {
     }
 
     func allPairedDevices() -> [PairedDevice] {
+        if ephemeral {
+            memoryLock.lock(); defer { memoryLock.unlock() }
+            return memory.compactMap { key, data -> PairedDevice? in
+                guard key.hasPrefix("device.") else { return nil }
+                return try? JSONDecoder().decode(PairedDevice.self, from: data)
+            }.sorted { $0.name < $1.name }
+        }
         let q: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -75,6 +97,11 @@ final class KeyStore {
     // MARK: - Keychain plumbing
 
     private func writeGeneric(account: String, payload: Data) -> Bool {
+        if ephemeral {
+            memoryLock.lock(); defer { memoryLock.unlock() }
+            memory[account] = payload
+            return true
+        }
         let base: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -93,6 +120,10 @@ final class KeyStore {
     }
 
     private func readGeneric(account: String) -> Data? {
+        if ephemeral {
+            memoryLock.lock(); defer { memoryLock.unlock() }
+            return memory[account]
+        }
         let q: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,

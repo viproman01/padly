@@ -1,54 +1,42 @@
 package app.padly.android.transport
 
 import app.padly.android.proto.PadlyMessage
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
-import javax.crypto.Mac
-import javax.crypto.spec.SecretKeySpec
-import java.util.concurrent.atomic.AtomicLong
+import app.padly.android.proto.ServerMessage
 
 /**
- * Encodes [PadlyMessage] instances into framed wire bytes:
- *   ver(1) | seq(4 LE) | msgpack(payload) | hmac(32)
+ * Converts [PadlyMessage] instances to MessagePack payload bytes and parses
+ * the Mac's replies. Framing/encryption live in [SecureChannel]; the plaintext
+ * handshake messages (helloE / welcomeE) are raw msgpack with no frame header.
  */
-class Encoder(initialSeq: Long = 1L) {
-    private val seq = AtomicLong(initialSeq)
-    private val version: Byte = 0x01
+object Encoder {
+    // MARK: outbound
 
-    fun encode(msg: PadlyMessage, hmacKey: ByteArray): ByteArray {
-        val payload = MessagePackCodec.encode(toMsgPack(msg))
-        val s = seq.getAndIncrement().toInt()
-        val seqBytes = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(s).array()
-        val mac = Mac.getInstance("HmacSHA256")
-        mac.init(SecretKeySpec(hmacKey, "HmacSHA256"))
-        mac.update(byteArrayOf(version))
-        mac.update(seqBytes)
-        mac.update(payload)
-        val hmac = mac.doFinal()
-        return ByteArray(1 + 4 + payload.size + 32).also { out ->
-            out[0] = version
-            System.arraycopy(seqBytes, 0, out, 1, 4)
-            System.arraycopy(payload, 0, out, 5, payload.size)
-            System.arraycopy(hmac, 0, out, 5 + payload.size, 32)
-        }
-    }
+    /** Plaintext handshake hello: identity + ephemeral public key. */
+    fun helloE(
+        deviceId: String,
+        deviceName: String,
+        appVer: String,
+        capabilities: List<String>,
+        publicKey: ByteArray,
+    ): ByteArray = MessagePackCodec.encode(
+        MsgPack.Map(
+            listOf(
+                MsgPack.Str("t") to MsgPack.Str("helloE"),
+                MsgPack.Str("d") to MsgPack.Map(
+                    listOf(
+                        MsgPack.Str("deviceId") to MsgPack.Str(deviceId),
+                        MsgPack.Str("deviceName") to MsgPack.Str(deviceName),
+                        MsgPack.Str("appVer") to MsgPack.Str(appVer),
+                        MsgPack.Str("caps") to MsgPack.Arr(capabilities.map { MsgPack.Str(it) }),
+                        MsgPack.Str("pub") to MsgPack.Bin(publicKey),
+                    ),
+                ),
+            ),
+        ),
+    )
 
-    /** Parse server frame: verify HMAC, unpack msgpack, hand back the root MsgPack. */
-    fun decode(frame: ByteArray, hmacKey: ByteArray): MsgPack {
-        require(frame.size > 1 + 4 + 32) { "frame too short" }
-        require(frame[0] == version) { "bad version" }
-        val seqBytes = frame.copyOfRange(1, 5)
-        val payload = frame.copyOfRange(5, frame.size - 32)
-        val hmac = frame.copyOfRange(frame.size - 32, frame.size)
-
-        val mac = Mac.getInstance("HmacSHA256")
-        mac.init(SecretKeySpec(hmacKey, "HmacSHA256"))
-        mac.update(byteArrayOf(version))
-        mac.update(seqBytes)
-        mac.update(payload)
-        require(mac.doFinal().contentEqualsConstantTime(hmac)) { "bad hmac" }
-        return MessagePackCodec.decode(payload)
-    }
+    /** Post-handshake message → msgpack payload (caller seals it). */
+    fun payload(msg: PadlyMessage): ByteArray = MessagePackCodec.encode(toMsgPack(msg))
 
     private fun toMsgPack(msg: PadlyMessage): MsgPack {
         fun map(t: String, vararg pairs: Pair<String, MsgPack>): MsgPack = MsgPack.Map(
@@ -59,17 +47,9 @@ class Encoder(initialSeq: Long = 1L) {
         )
 
         return when (msg) {
-            is PadlyMessage.Hello -> map(
-                "hello",
-                "deviceId" to MsgPack.Str(msg.deviceId),
-                "deviceName" to MsgPack.Str(msg.deviceName),
-                "appVer" to MsgPack.Str(msg.appVer),
-                "caps" to MsgPack.Arr(msg.capabilities.map { MsgPack.Str(it) }),
-            )
-            is PadlyMessage.PinAttempt -> map(
+            is PadlyMessage.PinProof -> map(
                 "pin",
-                "hash" to MsgPack.Bin(msg.pinHash),
-                "salt" to MsgPack.Bin(msg.salt),
+                "proof" to MsgPack.Bin(msg.proof),
             )
             is PadlyMessage.Ping -> map("ping", "ts" to MsgPack.UInt64(msg.ts))
             is PadlyMessage.CursorMove -> map(
@@ -105,8 +85,13 @@ class Encoder(initialSeq: Long = 1L) {
                 "down" to MsgPack.Bool(msg.down),
                 "ts" to MsgPack.UInt64(msg.ts),
             )
+            is PadlyMessage.Text -> map(
+                "text",
+                "s" to MsgPack.Str(msg.text),
+                "ts" to MsgPack.UInt64(msg.ts),
+            )
             is PadlyMessage.Presenter -> {
-                val pairs = mutableListOf(
+                val pairs = mutableListOf<Pair<String, MsgPack>>(
                     "kind" to MsgPack.UInt64(msg.kind.code.toULong()),
                     "ts" to MsgPack.UInt64(msg.ts),
                 )
@@ -117,11 +102,61 @@ class Encoder(initialSeq: Long = 1L) {
             is PadlyMessage.Bye -> map("bye", "reason" to MsgPack.Str(msg.reason))
         }
     }
-}
 
-private fun ByteArray.contentEqualsConstantTime(other: ByteArray): Boolean {
-    if (size != other.size) return false
-    var diff = 0
-    for (i in indices) diff = diff or (this[i].toInt() xor other[i].toInt())
-    return diff == 0
+    // MARK: inbound
+
+    /** Parse any server message (plaintext welcomeE or a decrypted payload). */
+    fun parseServer(bytes: ByteArray): ServerMessage? {
+        val root = runCatching { MessagePackCodec.decode(bytes) }.getOrNull() ?: return null
+        val pairs = (root as? MsgPack.Map)?.pairs ?: return null
+        val t = str(pairs, "t") ?: return null
+        val d = (value(pairs, "d") as? MsgPack.Map)?.pairs ?: emptyList()
+
+        return when (t) {
+            "welcomeE" -> {
+                val pub = bin(d, "pub") ?: return null
+                ServerMessage.WelcomeE(
+                    serverId = str(d, "serverId") ?: "",
+                    name = str(d, "name") ?: "Mac",
+                    serverVer = str(d, "serverVer") ?: "",
+                    publicKey = pub,
+                    known = bool(d, "known") ?: false,
+                )
+            }
+            "welcome" -> ServerMessage.Welcome(
+                accepted = bool(d, "accepted") ?: false,
+                requirePin = bool(d, "requirePin") ?: false,
+            )
+            "pairOk" -> ServerMessage.PairOk(ltk = bin(d, "ltk") ?: return null)
+            "pairFail" -> ServerMessage.PairFail(
+                reason = str(d, "reason") ?: "unknown",
+                attemptsLeft = uint(d, "left") ?: 0,
+            )
+            "pong" -> ServerMessage.Pong(
+                ts = (uint(d, "ts") ?: 0).toULong(),
+                serverTs = (uint(d, "serverTs") ?: 0).toULong(),
+            )
+            "bye" -> ServerMessage.Bye(reason = str(d, "reason") ?: "")
+            else -> null
+        }
+    }
+
+    private fun value(pairs: List<Pair<MsgPack, MsgPack>>, key: String): MsgPack? =
+        pairs.firstOrNull { (k, _) -> (k as? MsgPack.Str)?.v == key }?.second
+
+    private fun str(pairs: List<Pair<MsgPack, MsgPack>>, key: String): String? =
+        (value(pairs, key) as? MsgPack.Str)?.v
+
+    private fun bool(pairs: List<Pair<MsgPack, MsgPack>>, key: String): Boolean? =
+        (value(pairs, key) as? MsgPack.Bool)?.v
+
+    private fun bin(pairs: List<Pair<MsgPack, MsgPack>>, key: String): ByteArray? =
+        (value(pairs, key) as? MsgPack.Bin)?.v
+
+    private fun uint(pairs: List<Pair<MsgPack, MsgPack>>, key: String): Long? =
+        when (val v = value(pairs, key)) {
+            is MsgPack.UInt64 -> v.v.toLong()
+            is MsgPack.Int64 -> v.v
+            else -> null
+        }
 }

@@ -344,3 +344,28 @@ landing/
 - Apple Developer ID for code-signing the `.dmg`: required for distribution outside the Mac App Store without Gatekeeper warnings. User must provision the cert.
 - Android keystore for signing the release `.apk`: required for non-Play distribution. User must provision the keystore.
 - Open-source license: MIT assumed; confirm before publishing.
+
+---
+
+## Revision note — 2026-07-03, protocol v2
+
+The security layer described above (TLS 1.3 + cert pinning + per-frame HMAC)
+was replaced during implementation. Building a real X.509 self-signed
+certificate in pure Swift requires an ASN.1 stack, and the placeholder
+implementation meant the WiFi path could never actually connect. Instead of
+TLS, v2 does frame-layer crypto with the same guarantees and less moving
+machinery:
+
+- ephemeral P-256 ECDH per connection → HKDF-SHA256 → AES-256-GCM per frame
+  (confidentiality + integrity + replay protection via strictly-increasing seq
+  in the AAD);
+- pairing PIN becomes a session-key-bound HMAC proof — an active MITM holding
+  two different session keys cannot transplant it;
+- reconnect mixes the stored long-term key (ltk) into the HKDF — mutual
+  authentication with no extra round-trips;
+- transport is plain `ws://`; the QR carries only connect coordinates, no
+  secrets.
+
+Verified end-to-end 2026-07-03 with a headless server + independent smoke
+client (`mac/Sources/PadlySmoke`): pairing, wrong-PIN lockout, sealed
+ping/pong. The authoritative spec is `proto/README.md`.

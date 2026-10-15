@@ -8,10 +8,20 @@ This repository is a monorepo with four pieces:
 |---|---|
 | `mac/` | macOS menubar app (Swift, SwiftUI) — listens on the local network and injects events via `CGEvent` |
 | `android/` | Android phone app (Kotlin, Compose) — captures touch and keyboard, sends events |
+| `web/` | Phone/tablet browser touchpad — no APK; local page served by the Mac app, PIN pairing, cursor/click/scroll/drag/text |
 | `proto/` | Wire format spec — MessagePack message schemas, HMAC frame layout, HID code tables |
-| `landing/` | Marketing landing on Vercel (Next.js + Tailwind) with download buttons and setup guide |
+| `landing/` | Marketing landing (Next.js static export + Tailwind) with download buttons and setup guide — live at <https://padly.109-172-47-162.sslip.io> |
 
 ## Quick start (development)
+
+### Browser touchpad (phone or tablet)
+
+Run the updated Mac app, click **Подключить телефон…** in its menu, and scan
+the QR with the phone camera or open the displayed HTTP address in a browser.
+Enter the PIN from the Mac. Both devices must be on the same Wi-Fi; the Mac
+needs Accessibility permission. No phone app is required. Browser resources
+are bundled with the Mac app. See [web/README.md](web/README.md) for controls,
+build steps and testing limits.
 
 ### Mac app
 
@@ -52,7 +62,7 @@ Distribution requires signing keys you provision yourself:
 
 - **macOS `.dmg`** — needs an Apple Developer ID Application certificate. Without it macOS Gatekeeper will block the unsigned `.dmg` outside the Mac App Store.
 - **Android `.apk`** — needs an Android keystore (`keytool -genkey`). Without it the APK can still install but Google Play Protect may warn users.
-- **Vercel** — needs your own Vercel account. `cd landing && vercel deploy --prod`.
+- **Landing** — static export served by nginx on a VPS: `bash landing/deploy/vps/deploy.sh` (builds `landing/out/`, rsyncs it, checks the pages). After the first GitHub release, set `releasesReady: true` in `landing/lib/site.ts` and redeploy.
 
 ## Status
 

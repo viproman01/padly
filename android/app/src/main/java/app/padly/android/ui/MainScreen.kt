@@ -13,6 +13,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -46,19 +47,30 @@ fun MainScreen(initialPairingLink: String?) {
             WSClient(
                 host = it.ip,
                 port = it.port,
-                certPinSha256Hex = it.certFingerprintSha256Hex,
-                hmacKey = android.util.Base64.decode(it.hmacKeyB64, android.util.Base64.NO_WRAP),
+                deviceId = store.deviceId(),
+                deviceName = android.os.Build.MODEL ?: "Android",
+                ltk = android.util.Base64.decode(it.ltkB64, android.util.Base64.NO_WRAP),
             ).also { c -> c.connect() }
         }
+    }
+    DisposableEffect(connection) {
+        onDispose { connection?.close() }
+    }
+
+    // Forget the stored Mac and go back to discovery + PIN.
+    val repair = {
+        store.list().forEach { store.remove(it.serverId) }
+        pairedNow = false
+        screen = Screen.Pairing
     }
 
     Column(modifier = Modifier.fillMaxSize().background(Color(0xFF0E0E11))) {
         Box(modifier = Modifier.weight(1f)) {
             when (screen) {
-                Screen.Trackpad -> TrackpadSurface(connection = connection)
+                Screen.Trackpad -> TrackpadSurface(connection = connection, onRepair = repair)
                 Screen.Keyboard -> KeyboardOverlay(connection = connection)
                 Screen.Presenter -> PresenterMode(connection = connection)
-                Screen.Settings -> SettingsScreen()
+                Screen.Settings -> SettingsScreen(onForget = repair)
                 Screen.Pairing -> PairingScreen(
                     initialLink = initialPairingLink,
                     onPaired = {

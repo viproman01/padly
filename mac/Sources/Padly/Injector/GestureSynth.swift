@@ -2,66 +2,56 @@ import CoreGraphics
 import Foundation
 
 /// macOS does not let third-party apps post raw multi-touch trackpad events,
-/// but every system gesture has a keyboard or magnification shortcut we can
-/// emit instead. This class maps wire-protocol gestures to the closest
-/// equivalent CGEvent sequence.
+/// but every system gesture has a keyboard shortcut we can emit instead. This
+/// class maps wire-protocol gestures to the closest equivalent CGEvent sequence.
 final class GestureSynth {
+    // Mission Control / Spaces hotkeys are registered as ⌃+fn+arrow (that is
+    // what a real arrow key produces), so synthetic events must carry fn too.
+    private let ctrlArrow: CGEventFlags = [.maskControl, .maskSecondaryFn, .maskNumericPad]
+
     func synthesize(_ g: Gesture) {
         switch g.kind {
         case .swipe4Up:
-            // Mission Control: ctrl + Up Arrow
-            postKey(virtual: 0x7E, with: .maskControl)
+            postKey(0x7E, ctrlArrow)          // Mission Control: ⌃↑
         case .swipe4Down:
-            // Application windows: ctrl + Down
-            postKey(virtual: 0x7D, with: .maskControl)
+            postKey(0x7D, ctrlArrow)          // App windows: ⌃↓
         case .swipe4Left:
-            // Next Space: ctrl + Right Arrow
-            postKey(virtual: 0x7C, with: .maskControl)
+            postKey(0x7C, ctrlArrow)          // Space to the right: ⌃→
         case .swipe4Right:
-            // Prev Space: ctrl + Left Arrow
-            postKey(virtual: 0x7B, with: .maskControl)
+            postKey(0x7B, ctrlArrow)          // Space to the left: ⌃←
         case .spread4:
-            // Show Desktop: F11 (depending on user mapping)
-            postKey(virtual: 0x67, with: [])
+            postKey(0x67, [])                 // Show Desktop: F11
         case .pinch4:
-            // Launchpad: F4 by default
-            postKey(virtual: 0x76, with: [])
-        case .swipe3Up, .swipe3Down, .swipe3Left, .swipe3Right:
-            // 3-finger swipes default to forward/back in apps that respect them
-            // (Safari, Finder). We approximate via cmd + [ / cmd + ] or arrow.
-            switch g.kind {
-            case .swipe3Left: postKey(virtual: 0x21, with: .maskCommand)  // cmd + [
-            case .swipe3Right: postKey(virtual: 0x1E, with: .maskCommand) // cmd + ]
-            default: break
-            }
-        case .pinchZoom:
-            // Forward as scroll wheel with momentum so apps treat it as zoom.
-            postScrollZoom(payload: g.data)
-        case .rotate:
-            // No public CGEvent for rotate — drop silently for now.
+            postKey(0x76, [])                 // Launchpad: F4
+        case .swipe3Left:
+            postKey(0x21, .maskCommand)       // Back: ⌘[
+        case .swipe3Right:
+            postKey(0x1E, .maskCommand)       // Forward: ⌘]
+        case .swipe3Up, .swipe3Down:
             break
+        case .pinchZoom:
+            zoom(payload: g.data)
+        case .rotate:
+            break                             // no public equivalent
         }
     }
 
-    private func postKey(virtual code: CGKeyCode, with flags: CGEventFlags) {
-        let down = CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: true)
-        down?.flags = flags
-        down?.post(tap: .cghidEventTap)
-        let up = CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: false)
-        up?.flags = flags
-        up?.post(tap: .cghidEventTap)
-    }
-
-    private func postScrollZoom(payload: Data) {
+    /// Payload: big-endian f32 scale step (> 1 zoom in, < 1 zoom out). ⌘= / ⌘−
+    /// is the zoom shortcut in browsers, Preview, Finder, editors.
+    private func zoom(payload: Data) {
         guard payload.count >= 4 else { return }
         var bits: UInt32 = 0
         for i in 0 ..< 4 { bits = (bits << 8) | UInt32(payload[payload.startIndex + i]) }
         let scale = Float(bitPattern: bits)
-        let delta = Int32((scale - 1.0) * 80)
-        let event = CGEvent(scrollWheelEvent2Source: nil,
-                            units: .pixel, wheelCount: 1,
-                            wheel1: delta, wheel2: 0, wheel3: 0)
-        event?.flags = .maskCommand // cmd-scroll = zoom in most apps
-        event?.post(tap: .cghidEventTap)
+        guard scale.isFinite, scale != 1 else { return }
+        postKey(scale > 1 ? 0x18 : 0x1B, .maskCommand)   // ⌘=  /  ⌘-
+    }
+
+    private func postKey(_ code: CGKeyCode, _ flags: CGEventFlags) {
+        for down in [true, false] {
+            let event = CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: down)
+            event?.flags = flags
+            event?.post(tap: .cghidEventTap)
+        }
     }
 }

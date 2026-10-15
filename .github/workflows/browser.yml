@@ -1,0 +1,96 @@
+name: Browser touchpad
+
+on:
+  push:
+    paths: ['web/**', 'mac/**', '.github/workflows/browser.yml']
+  pull_request:
+    paths: ['web/**', 'mac/**', '.github/workflows/browser.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+      - run: pnpm install --frozen-lockfile
+        working-directory: web
+      - run: pnpm test
+        working-directory: web
+      - run: pnpm build
+        working-directory: web
+      - run: git diff --exit-code -- mac/Sources/Padly/BrowserResources
+      - run: pnpm exec playwright install --with-deps chromium
+        working-directory: web
+      - run: pnpm test:browser
+        working-directory: web
+  mac:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Show Swift toolchain
+        run: swift --version
+      - run: swift test
+        working-directory: mac
+      - name: Build universal Padly.app
+        run: bash scripts/make-app.sh
+        env:
+          UNIVERSAL: '1'
+        working-directory: mac
+      - name: Check installed resource bundle
+        run: test -s build/Padly.app/Contents/Resources/Padly_Padly.bundle/BrowserResources/app.js
+        working-directory: mac
+      - name: Check universal app and signature
+        run: |
+          lipo -verify_arch arm64 x86_64 build/Padly.app/Contents/MacOS/Padly
+          codesign --verify --deep --strict build/Padly.app
+        working-directory: mac
+      - name: Smoke-test installed browser resources
+        run: |
+          PADLY_EPHEMERAL_KEYSTORE=1 build/Padly.app/Contents/MacOS/Padly --headless > build/receiver.log 2>&1 &
+          padly_pid=$!
+          trap 'kill "$padly_pid" 2>/dev/null || true' EXIT
+          curl --fail --retry 10 --retry-delay 1 --retry-connrefused http://127.0.0.1:47822/config.json -o build/browser-config.json
+          curl --fail http://127.0.0.1:47822/app.js -o build/served-app.js
+          cmp build/served-app.js Sources/Padly/BrowserResources/app.js
+        working-directory: mac
+      - name: Create DMG
+        run: |
+          hdiutil create -volname Padly -srcfolder build/Padly.app -ov -format UDZO build/Padly.dmg
+          hdiutil verify build/Padly.dmg
+        working-directory: mac
+      - name: Upload macOS download
+        uses: actions/upload-artifact@v4
+        with:
+          name: padly-browser-mac
+          path: mac/build/Padly.dmg
+          if-no-files-found: error
+  publish:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/browser-deploy-20261016'
+    needs: [web, mac]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: padly-browser-mac
+          path: dist
+      - name: Publish tested Mac preview
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="browser-${GITHUB_SHA:0:12}"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$tag" dist/Padly.dmg --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$tag" dist/Padly.dmg --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease --title "Padly Browser Preview" --notes "Browser touchpad for macOS 14+. Universal arm64/Intel app; ad-hoc signed. Connect phone and Mac to the same Wi-Fi, launch Padly, allow Accessibility, and scan the QR in its menu. Browser, protocol and Swift checks passed in this workflow; physical-device testing remains necessary."
+          fi

@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+
 package app.padly.android.ui
 
 import androidx.compose.foundation.background
@@ -23,8 +25,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInteropFilter
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.padly.android.proto.PadlyMessage
@@ -34,6 +38,7 @@ import app.padly.android.transport.WSClient
 @Composable
 fun PresenterMode(connection: WSClient?) {
     var laserOn by remember { mutableStateOf(false) }
+    var laserBoxSize by remember { mutableStateOf(IntSize.Zero) }
 
     Column(modifier = Modifier.fillMaxSize().background(Color(0xFF0E0E11)).padding(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
@@ -109,14 +114,17 @@ fun PresenterMode(connection: WSClient?) {
                         .fillMaxWidth()
                         .background(Color(0xFF0E0E11), RoundedCornerShape(8.dp))
                         .padding(24.dp)
+                        .onSizeChanged { laserBoxSize = it }
                         .pointerInteropFilter { ev ->
                             if (!laserOn) {
                                 laserOn = true
                                 connection?.send(PadlyMessage.Presenter(PresenterKind.Pointer, 0.5f, 0.5f, System.currentTimeMillis().toULong()))
                                 return@pointerInteropFilter true
                             }
-                            val nx = (ev.x / ev.device.motionRange?.range!!.coerceAtLeast(1f)).coerceIn(0f, 1f)
-                            val ny = (ev.y / ev.device.motionRange?.range!!.coerceAtLeast(1f)).coerceIn(0f, 1f)
+                            val w = laserBoxSize.width.toFloat().coerceAtLeast(1f)
+                            val h = laserBoxSize.height.toFloat().coerceAtLeast(1f)
+                            val nx = (ev.x / w).coerceIn(0f, 1f)
+                            val ny = (ev.y / h).coerceIn(0f, 1f)
                             connection?.send(PadlyMessage.Presenter(PresenterKind.Pointer, nx, 1 - ny, System.currentTimeMillis().toULong()))
                             true
                         },

@@ -55,6 +55,9 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true }
+    // android.util.Log etc. return defaults in JVM unit tests (WSClient logs),
+    // so LiveInteropTest can drive the real client against a local Mac server.
+    testOptions { unitTests.isReturnDefaultValues = true }
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
 }
 
@@ -74,12 +77,6 @@ dependencies {
     implementation("androidx.security:security-crypto-ktx:1.1.0-alpha06")
 
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    implementation("com.google.zxing:core:3.5.3")
-    implementation("androidx.camera:camera-core:1.4.0")
-    implementation("androidx.camera:camera-camera2:1.4.0")
-    implementation("androidx.camera:camera-lifecycle:1.4.0")
-    implementation("androidx.camera:camera-view:1.4.0")
-    implementation("com.google.mlkit:barcode-scanning:17.3.0")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")

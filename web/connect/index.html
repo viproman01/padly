@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#101314">
+  <meta name="referrer" content="no-referrer">
+  <meta name="description" content="Превратите телефон или планшет в тачпад для Mac. Откройте локальную страницу Padly и подключитесь по PIN без приложения на телефоне.">
+  <title>Padly — тачпад в браузере</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./connect.js"></script>
+</head>
+<body>
+  <main class="app">
+    <header class="header">
+      <a class="brand" href="./" aria-label="Padly, подключение"><span class="brand-symbol" aria-hidden="true">p</span>padly<span class="brand-label">WEB</span></a>
+      <span class="header-note"><span class="status-dot" aria-hidden="true"></span> Локальное подключение</span>
+    </header>
+
+    <section class="intro" aria-labelledby="page-title">
+      <p class="eyebrow">ТЕЛЕФОН В РУКЕ. MAC ПОД КОНТРОЛЕМ.</p>
+      <h1 id="page-title">Ваш тачпад.<br>Теперь в браузере<span>.</span></h1>
+      <p class="intro-copy">Двигайте курсор, прокручивайте страницы и печатайте с телефона или планшета. Устанавливать приложение на телефон не нужно.</p>
+    </section>
+
+    <div class="layout">
+      <section class="connect-card" aria-labelledby="connect-title">
+        <div class="card-heading"><span class="tiny-cross" aria-hidden="true">✣</span><span>ПОДКЛЮЧЕНИЕ К ВАШЕМУ MAC</span><span class="step-tag">01 — 03</span></div>
+        <div class="card-content">
+          <h2 id="connect-title">Откройте Padly на Mac</h2>
+          <p class="card-copy">В меню приложения нажмите <strong>«Подключить телефон…»</strong>. Сканируйте QR камерой телефона — или введите показанный адрес здесь.</p>
+          <form id="connect-form" novalidate>
+            <label for="mac-address">Адрес из меню Padly</label>
+            <input id="mac-address" name="address" type="text" inputmode="url" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="192.168.1.25:47822" aria-describedby="address-help address-message" enterkeyhint="go" required>
+            <p id="address-help" class="field-help">Подойдёт IP-адрес или имя Mac с окончанием .local. Порт по умолчанию — 47822.</p>
+            <button id="connect-button" class="primary-button" type="submit">Открыть тачпад ↗</button>
+            <p id="address-message" class="address-message" role="status" aria-live="polite"></p>
+          </form>
+          <div class="connection-note"><span aria-hidden="true">⌁</span><p>Вы перейдёте на локальную HTTP-страницу вашего Mac. Там введите PIN с его экрана — и тачпад готов.</p></div>
+          <noscript><p class="noscript-note">Включите JavaScript или откройте HTTP-адрес из меню Padly напрямую в адресной строке браузера.</p></noscript>
+        </div>
+      </section>
+
+      <aside class="requirements" aria-labelledby="requirements-title">
+        <p class="eyebrow">ПЕРЕД ПОДКЛЮЧЕНИЕМ</p>
+        <h2 id="requirements-title">Три простых условия</h2>
+        <ol class="steps">
+          <li><span class="step-number" aria-hidden="true">01</span><div><h3>Одна сеть Wi-Fi</h3><p>Телефон и Mac подключены к одной сети, в которой устройства могут видеть друг друга.</p></div></li>
+          <li><span class="step-number" aria-hidden="true">02</span><div><h3>Padly запущен на Mac</h3><p>Нужна обновлённая версия с браузерным режимом. Mac остаётся включённым.</p></div></li>
+          <li><span class="step-number" aria-hidden="true">03</span><div><h3>Разрешён доступ к управлению</h3><p>На Mac: Системные настройки → Конфиденциальность и безопасность → Универсальный доступ → Padly.</p></div></li>
+        </ol>
+        <p class="network-help">Если браузер запросит доступ к локальной сети, разрешите его. В гостевой сети подключение между устройствами может быть запрещено.</p>
+      </aside>
+    </div>
+
+    <section class="build-card" aria-labelledby="build-title">
+      <div><p class="eyebrow">ПРИЛОЖЕНИЕ ДЛЯ MAC</p><h2 id="build-title">Соберите браузерную версию</h2><p>Для macOS 14 и новее. Скачайте и распакуйте исходники, затем выполните в Terminal из папки проекта:</p></div>
+      <a class="download-link" href="/downloads/Padly-browser-source.zip" download>Скачать исходники <span aria-hidden="true">↓</span></a>
+      <pre aria-label="Команды сборки Padly"><code>bash mac/scripts/make-app.sh
+open mac/build/Padly.app</code></pre>
+      <p class="build-help">Для сборки нужны инструменты разработчика Apple. При необходимости установите их командой <code>xcode-select --install</code>. После запуска разрешите Padly управлять Mac.</p>
+    </section>
+
+    <footer class="footer"><span>Тачпад работает напрямую с вашим Mac по Wi-Fi.</span><span>PIN вводится только на странице Mac.</span></footer>
+  </main>
+</body>
+</html>

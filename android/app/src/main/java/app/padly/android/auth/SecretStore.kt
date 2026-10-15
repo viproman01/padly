@@ -30,8 +30,8 @@ class SecretStore(context: Context) {
         val name: String,
         val ip: String,
         val port: Int,
-        val certFingerprintSha256Hex: String,
-        val hmacKeyB64: String,
+        /** Long-term key from pairOk, mixed into HKDF on reconnect. */
+        val ltkB64: String,
         val lastSeenEpochMs: Long,
     )
 
