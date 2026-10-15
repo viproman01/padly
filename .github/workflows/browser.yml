@@ -46,7 +46,7 @@ jobs:
           UNIVERSAL: '1'
         working-directory: mac
       - name: Check installed resource bundle
-        run: test -s build/Padly.app/Contents/Resources/Padly_Padly.bundle/BrowserResources/app.js
+        run: test -s build/Padly.app/Contents/Resources/Padly_Padly.bundle/Contents/Resources/BrowserResources/app.js
         working-directory: mac
       - name: Check universal app and signature
         run: |
@@ -94,3 +94,4 @@ jobs:
           else
             gh release create "$tag" dist/Padly.dmg --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease --title "Padly Browser Preview" --notes "Browser touchpad for macOS 14+. Universal arm64/Intel app; ad-hoc signed. Connect phone and Mac to the same Wi-Fi, launch Padly, allow Accessibility, and scan the QR in its menu. Browser, protocol and Swift checks passed in this workflow; physical-device testing remains necessary."
           fi
+
