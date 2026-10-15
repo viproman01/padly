@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#101314">
   <meta name="referrer" content="no-referrer">
-  <meta name="description" content="Превратите телефон или планшет в тачпад для Mac. Откройте локальную страницу Padly и подключитесь по PIN без приложения на телефоне.">
+  <meta name="description" content="Превратите телефон или планшет в тачпад для Mac или Windows. Запустите Padly на компьютере и подключитесь по PIN из браузера телефона.">
   <title>Padly — тачпад в браузере</title>
   <link rel="stylesheet" href="./styles.css">
   <script type="module" src="./connect.js"></script>
@@ -18,26 +18,26 @@
     </header>
 
     <section class="intro" aria-labelledby="page-title">
-      <p class="eyebrow">ТЕЛЕФОН В РУКЕ. MAC ПОД КОНТРОЛЕМ.</p>
+      <p class="eyebrow">ТЕЛЕФОН В РУКЕ. КОМПЬЮТЕР ПОД КОНТРОЛЕМ.</p>
       <h1 id="page-title">Ваш тачпад.<br>Теперь в браузере<span>.</span></h1>
-      <p class="intro-copy">Двигайте курсор, прокручивайте страницы и печатайте с телефона или планшета. Устанавливать приложение на телефон не нужно.</p>
+      <p class="intro-copy">Двигайте курсор, прокручивайте страницы и печатайте на Mac или Windows с телефона или планшета. На компьютере нужен Padly, а на телефоне — только браузер.</p>
     </section>
 
     <div class="layout">
       <section class="connect-card" aria-labelledby="connect-title">
-        <div class="card-heading"><span class="tiny-cross" aria-hidden="true">✣</span><span>ПОДКЛЮЧЕНИЕ К ВАШЕМУ MAC</span><span class="step-tag">01 — 03</span></div>
+        <div class="card-heading"><span class="tiny-cross" aria-hidden="true">✣</span><span>ПОДКЛЮЧЕНИЕ К КОМПЬЮТЕРУ</span><span class="step-tag">01 — 03</span></div>
         <div class="card-content">
-          <h2 id="connect-title">Откройте Padly на Mac</h2>
-          <p class="card-copy">В меню приложения нажмите <strong>«Подключить телефон…»</strong>. Сканируйте QR камерой телефона — или введите показанный адрес здесь.</p>
+          <h2 id="connect-title">Откройте Padly на компьютере</h2>
+          <p class="card-copy">На Windows адрес и QR появятся в окне Padly. На Mac нажмите <strong>«Подключить телефон…»</strong> в меню приложения. Сканируйте QR камерой телефона — или введите показанный адрес здесь.</p>
           <form id="connect-form" novalidate>
-            <label for="mac-address">Адрес из меню Padly</label>
+            <label for="mac-address">Адрес из Padly на компьютере</label>
             <input id="mac-address" name="address" type="text" inputmode="url" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="192.168.1.25:47822" aria-describedby="address-help address-message" enterkeyhint="go" required>
-            <p id="address-help" class="field-help">Подойдёт IP-адрес или имя Mac с окончанием .local. Порт по умолчанию — 47822.</p>
+            <p id="address-help" class="field-help">Введите локальный IP-адрес из Padly. На Mac подойдёт и имя с окончанием .local. Порт по умолчанию — 47822.</p>
             <button id="connect-button" class="primary-button" type="submit">Открыть тачпад ↗</button>
             <p id="address-message" class="address-message" role="status" aria-live="polite"></p>
           </form>
-          <div class="connection-note"><span aria-hidden="true">⌁</span><p>Вы перейдёте на локальную HTTP-страницу вашего Mac. Там введите PIN с его экрана — и тачпад готов.</p></div>
-          <noscript><p class="noscript-note">Включите JavaScript или откройте HTTP-адрес из меню Padly напрямую в адресной строке браузера.</p></noscript>
+          <div class="connection-note"><span aria-hidden="true">⌁</span><p>Вы перейдёте на локальную HTTP-страницу компьютера. Там введите PIN с его экрана — и тачпад готов. На этом сайте вводить PIN не нужно.</p></div>
+          <noscript><p class="noscript-note">Включите JavaScript или откройте HTTP-адрес из Padly напрямую в адресной строке браузера.</p></noscript>
         </div>
       </section>
 
@@ -45,23 +45,26 @@
         <p class="eyebrow">ПЕРЕД ПОДКЛЮЧЕНИЕМ</p>
         <h2 id="requirements-title">Три простых условия</h2>
         <ol class="steps">
-          <li><span class="step-number" aria-hidden="true">01</span><div><h3>Одна сеть Wi-Fi</h3><p>Телефон и Mac подключены к одной сети, в которой устройства могут видеть друг друга.</p></div></li>
-          <li><span class="step-number" aria-hidden="true">02</span><div><h3>Padly запущен на Mac</h3><p>Нужна обновлённая версия с браузерным режимом. Mac остаётся включённым.</p></div></li>
-          <li><span class="step-number" aria-hidden="true">03</span><div><h3>Разрешён доступ к управлению</h3><p>На Mac: Системные настройки → Конфиденциальность и безопасность → Универсальный доступ → Padly.</p></div></li>
+          <li><span class="step-number" aria-hidden="true">01</span><div><h3>Одна сеть Wi-Fi</h3><p>Телефон и компьютер подключены к одной сети, в которой устройства могут видеть друг друга.</p></div></li>
+          <li><span class="step-number" aria-hidden="true">02</span><div><h3>Padly запущен на компьютере</h3><p>Скачайте версию для вашей системы ниже. Компьютер должен оставаться включённым, а Padly — запущенным.</p></div></li>
+          <li><span class="step-number" aria-hidden="true">03</span><div><h3>Разрешено подключение</h3><p><strong>Windows:</strong> выберите частную сеть для домашнего Wi-Fi и разрешите Padly доступ к ней, если появится запрос брандмауэра.</p><p><strong>Mac:</strong> Системные настройки → Конфиденциальность и безопасность → Универсальный доступ → Padly.</p></div></li>
         </ol>
         <p class="network-help">Если браузер запросит доступ к локальной сети, разрешите его. В гостевой сети подключение между устройствами может быть запрещено.</p>
       </aside>
     </div>
 
-    <section class="build-card" aria-labelledby="build-title">
-      <div><p class="eyebrow">ПРИЛОЖЕНИЕ ДЛЯ MAC</p><h2 id="build-title">Соберите браузерную версию</h2><p>Для macOS 14 и новее. Скачайте и распакуйте исходники, затем выполните в Terminal из папки проекта:</p></div>
-      <a class="download-link" href="/downloads/Padly-browser-source.zip" download>Скачать исходники <span aria-hidden="true">↓</span></a>
-      <pre aria-label="Команды сборки Padly"><code>bash mac/scripts/make-app.sh
-open mac/build/Padly.app</code></pre>
-      <p class="build-help">Для сборки нужны инструменты разработчика Apple. При необходимости установите их командой <code>xcode-select --install</code>. После запуска разрешите Padly управлять Mac.</p>
+    <section id="windows-download" class="build-card" data-platform="windows" aria-labelledby="windows-title">
+      <div><p class="eyebrow">ПРИЛОЖЕНИЕ ДЛЯ WINDOWS</p><h2 id="windows-title">Padly для Windows</h2><p>Запустите <code>Padly.Windows.exe</code> на компьютере: приложение покажет адрес, QR и шестизначный PIN. Устанавливать .NET отдельно не нужно.</p></div>
+      <p class="build-help">Откройте QR на телефоне или введите адрес в форму выше. PIN действует две минуты; новый можно создать в окне Padly. Закрытие окна сворачивает Padly в область уведомлений. Для завершения работы выберите «Выход» в его меню.</p>
     </section>
 
-    <footer class="footer"><span>Тачпад работает напрямую с вашим Mac по Wi-Fi.</span><span>PIN вводится только на странице Mac.</span></footer>
+    <section class="build-card" data-platform="macos" aria-labelledby="build-title">
+      <div><p class="eyebrow">ПРИЛОЖЕНИЕ ДЛЯ MAC</p><h2 id="build-title">Padly для macOS</h2><p>Для macOS 14 и новее. Откройте DMG и перенесите Padly в «Программы». Запустите приложение и нажмите «Подключить телефон…» в меню.</p></div>
+      <a class="download-link" href="https://github.com/viproman01/padly/releases/download/browser-cc4eb0d98ff0/Padly.dmg">Скачать для Mac <span aria-hidden="true">↓</span></a>
+      <p class="build-help">Разрешите Padly управлять Mac в разделе «Универсальный доступ». Этот доступ требуется только на macOS.</p>
+    </section>
+
+    <footer class="footer"><span>Тачпад работает напрямую с Mac или Windows по Wi-Fi.</span><span>PIN вводится только на локальной странице компьютера.</span></footer>
   </main>
 </body>
 </html>

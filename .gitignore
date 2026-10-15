@@ -6,6 +6,8 @@ ruvector.db
 **/node_modules/
 **/.next/
 **/build/
+**/bin/
+**/obj/
 **/dist/
 **/.build/
 **/.gradle/

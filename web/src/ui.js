@@ -83,9 +83,9 @@ function setState(state) {
   connectionState = state.status;
   ready = state.status === 'ready';
   const labels = {
-    connecting: 'Подключаемся к Mac…', pin: 'Нужен PIN с экрана Mac',
-    ready: state.name ? `Подключено к ${state.name}` : 'Подключено к Mac',
-    disconnected: 'Нет подключения к Mac', error: 'Не удалось подключиться',
+    connecting: 'Подключаемся к компьютеру…', pin: 'Нужен PIN с экрана компьютера',
+    ready: state.name ? `Подключено к ${state.name}` : 'Подключено к компьютеру',
+    disconnected: 'Нет подключения к компьютеру', error: 'Не удалось подключиться',
   };
   byId('status').dataset.state = state.status;
   byId('status-text').textContent = state.message || labels[state.status] || 'Нет подключения';
@@ -96,12 +96,12 @@ function setState(state) {
   if (state.status === 'pin') {
     pinInput.value = '';
     const attempts = Number.isInteger(state.attemptsLeft) ? ` Осталось попыток: ${state.attemptsLeft}.` : '';
-    byId('pin-help').textContent = (state.message || 'Откройте Padly на Mac — код появится в окне подключения.') + attempts;
+    byId('pin-help').textContent = (state.message || 'Откройте Padly на компьютере — код появится в окне подключения.') + attempts;
   }
   touchpad.dataset.enabled = String(ready);
   touchpad.setAttribute('aria-disabled', String(!ready));
-  byId('surface-state').textContent = ready ? 'ГОТОВ К ЖЕСТАМ' : state.status === 'connecting' ? 'ПОДКЛЮЧЕНИЕ…' : 'ОЖИДАНИЕ MAC';
-  byId('surface-label').textContent = ready ? 'Место для ваших жестов' : 'Подключите Mac, чтобы начать';
+  byId('surface-state').textContent = ready ? 'ГОТОВ К ЖЕСТАМ' : state.status === 'connecting' ? 'ПОДКЛЮЧЕНИЕ…' : 'ОЖИДАНИЕ ПК';
+  byId('surface-label').textContent = ready ? 'Место для ваших жестов' : 'Подключите компьютер, чтобы начать';
   for (const element of [leftButton, rightButton, textInput, byId('text-submit'), ...document.querySelectorAll('[data-key]')]) element.disabled = !ready;
 }
 
@@ -111,7 +111,7 @@ async function connect() {
   try {
     await client.connect();
   } catch {
-    setState({ status: 'error', message: 'Mac недоступен. Проверьте Padly и подключение к одной сети Wi-Fi.' });
+    setState({ status: 'error', message: 'Компьютер недоступен. Проверьте Padly и подключение к одной сети Wi-Fi.' });
   }
 }
 

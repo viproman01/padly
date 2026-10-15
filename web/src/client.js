@@ -29,20 +29,20 @@ export class PadlyClient {
   async connect() {
     this.close(false);
     const generation = this.generation;
-    this.emit('connecting', 'Подключаемся к Mac…');
+    this.emit('connecting', 'Подключаемся к компьютеру…');
     this.abort = new AbortController();
-    this.timeout = setTimeout(() => this.fail('Mac не ответил. Проверьте Wi-Fi и приложение Padly.'), 10000);
+    this.timeout = setTimeout(() => this.fail('Компьютер не ответил. Проверьте Wi-Fi и приложение Padly.'), 10000);
     try {
       const base = new URL(this.baseURL);
-      if (base.protocol !== 'http:') throw new Error('Откройте HTTP-адрес из меню Padly на Mac.');
+      if (base.protocol !== 'http:') throw new Error('Откройте HTTP-адрес из Padly на компьютере.');
       const response = await this.fetchImpl(new URL('/config.json', base), {
         cache: 'no-store', credentials: 'omit', signal: this.abort.signal,
       });
-      if (!response.ok) throw new Error('Не удалось получить настройки Mac.');
+      if (!response.ok) throw new Error('Не удалось получить настройки компьютера.');
       const config = await response.json();
       if (generation !== this.generation) return;
       if (!Number.isInteger(config.wsPort) || config.wsPort < 1 || config.wsPort > 65535 ||
-        typeof config.serverId !== 'string' || !config.serverId) throw new Error('Неверные настройки Mac.');
+        typeof config.serverId !== 'string' || !config.serverId) throw new Error('Неверные настройки компьютера.');
       this.serverId = config.serverId;
       this.activePair = this.pair?.serverId === config.serverId ? this.pair : null;
       this.deviceId = this.activePair?.deviceId ?? identity();
@@ -89,7 +89,7 @@ export class PadlyClient {
         throw new Error('Unexpected handshake');
       }
       if (msg.d.known && !this.activePair) throw new Error('Missing saved key');
-      this.name = String(msg.d.name ?? 'Mac');
+      this.name = String(msg.d.name ?? 'компьютеру');
       this.sessionKey = this.handshake.derive(msg.d.pub,
         msg.d.known ? Uint8Array.from(this.activePair.ltk) : null);
       this.sendChannel = new SecureChannel(this.sessionKey, 1);
@@ -104,7 +104,7 @@ export class PadlyClient {
         if (this.expectPin) {
           if (!msg.d.requirePin) throw new Error('Missing PIN request');
           this.armPinTimeout();
-          this.emit('pin', 'Введите PIN из меню Padly на Mac.');
+          this.emit('pin', 'Введите PIN из Padly на компьютере.');
         } else {
           if (msg.d.requirePin) throw new Error('Unexpected PIN request');
           this.ready();
@@ -124,15 +124,15 @@ export class PadlyClient {
           this.armPinTimeout();
           this.emit('pin', `Неверный PIN. Осталось попыток: ${msg.d.left}.`, { attemptsLeft: msg.d.left });
         } else {
-          const message = reason === 'locked' ? 'Слишком много попыток. Подождите минуту и создайте новый PIN на Mac.'
-            : reason === 'expired' ? 'PIN истёк. Создайте новый PIN на Mac и подключитесь заново.'
-              : 'На Mac нажмите «Подключить телефон…», затем подключитесь заново.';
+          const message = reason === 'locked' ? 'Слишком много попыток. Подождите минуту и создайте новый PIN на компьютере.'
+            : reason === 'expired' ? 'PIN истёк. Создайте новый PIN на компьютере и подключитесь заново.'
+              : 'Откройте подключение телефона в Padly на компьютере, затем подключитесь заново.';
           this.fail(message);
         }
         break;
       }
       case 'pong': this.lastPong = Date.now(); break;
-      case 'bye': this.fail('Mac завершил соединение. Подключитесь заново.'); break;
+      case 'bye': this.fail('Компьютер завершил соединение. Подключитесь заново.'); break;
       default: throw new Error('Unexpected message');
     }
   }
@@ -142,7 +142,7 @@ export class PadlyClient {
     this.lastPong = Date.now();
     this.emit('ready', `Подключено к ${this.name}`);
     this.pingTimer = setInterval(() => {
-      if (Date.now() - this.lastPong > 12000) this.fail('Mac перестал отвечать. Подключитесь заново.');
+      if (Date.now() - this.lastPong > 12000) this.fail('Компьютер перестал отвечать. Подключитесь заново.');
       else this.send('ping', { ts: Date.now() });
     }, 3000);
   }
@@ -152,7 +152,7 @@ export class PadlyClient {
     try {
       const proof = pinProof(this.sessionKey, pin);
       clearTimeout(this.timeout);
-      this.timeout = setTimeout(() => this.fail('Mac не подтвердил PIN. Проверьте Wi-Fi и подключитесь заново.'), 10000);
+      this.timeout = setTimeout(() => this.fail('Компьютер не подтвердил PIN. Проверьте Wi-Fi и подключитесь заново.'), 10000);
       return this.sendSealed('pin', { proof });
     }
     catch (error) { this.emit('pin', error.message); return false; }
@@ -160,7 +160,7 @@ export class PadlyClient {
 
   armPinTimeout() {
     clearTimeout(this.timeout);
-    this.timeout = setTimeout(() => this.fail('PIN истёк. Создайте новый PIN на Mac и подключитесь заново.'), 120000);
+    this.timeout = setTimeout(() => this.fail('PIN истёк. Создайте новый PIN на компьютере и подключитесь заново.'), 120000);
   }
 
   send(type, fields) {
@@ -171,7 +171,7 @@ export class PadlyClient {
   sendSealed(type, fields) {
     if (!this.sendChannel || this.socket?.readyState !== 1) return false;
     // Bound latency and memory on a stalled radio. Closing also releases held
-    // buttons on the Mac; a mouse-up must never be silently dropped.
+    // buttons on the receiver; a mouse-up must never be silently dropped.
     if (this.socket.bufferedAmount > 65536) { this.fail('Сеть перегружена. Подключитесь заново.'); return false; }
     try { this.socket.send(this.sendChannel.seal(pack(type, fields))); return true; }
     catch { this.fail('Не удалось отправить событие. Подключитесь заново.'); return false; }

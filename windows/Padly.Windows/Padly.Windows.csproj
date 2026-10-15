@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>Padly.Windows</AssemblyName>
+    <RootNamespace>Padly.Windows</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Version>0.2.0</Version>
+    <Product>Padly</Product>
+    <Description>Phone and tablet browser touchpad receiver for Windows</Description>
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="QRCoder" Version="1.8.1" />
+    <EmbeddedResource Include="../../mac/Sources/Padly/BrowserResources/index.html;../../mac/Sources/Padly/BrowserResources/app.js;../../mac/Sources/Padly/BrowserResources/styles.css">
+      <LogicalName>Padly.Windows.BrowserResources.%(Filename)%(Extension)</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+</Project>

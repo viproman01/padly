@@ -1,14 +1,15 @@
 # Padly
 
-Turn your Android phone into a trackpad for macOS — multi-touch gestures, full keyboard, presenter mode. WiFi (<30 ms) or Bluetooth (offline).
+Turn a phone or tablet into a browser touchpad for macOS or Windows over local Wi-Fi. The repository also includes an Android app for the original macOS receiver.
 
-This repository is a monorepo with four pieces:
+This repository contains:
 
 | Path | What |
 |---|---|
 | `mac/` | macOS menubar app (Swift, SwiftUI) — listens on the local network and injects events via `CGEvent` |
+| `windows/` | Windows 10/11 receiver (.NET 10/WinForms) — QR/PIN pairing, local browser page and native `SendInput` |
 | `android/` | Android phone app (Kotlin, Compose) — captures touch and keyboard, sends events |
-| `web/` | Phone/tablet browser touchpad — no APK; local page served by the Mac app, PIN pairing, cursor/click/scroll/drag/text |
+| `web/` | Phone/tablet browser touchpad — local page served by the receiver, PIN pairing, cursor/click/scroll/drag/text |
 | `proto/` | Wire format spec — MessagePack message schemas, HMAC frame layout, HID code tables |
 | `landing/` | Marketing landing (Next.js static export + Tailwind) with download buttons and setup guide — live at <https://padly.109-172-47-162.sslip.io> |
 
@@ -16,11 +17,11 @@ This repository is a monorepo with four pieces:
 
 ### Browser touchpad (phone or tablet)
 
-Run the updated Mac app, click **Подключить телефон…** in its menu, and scan
-the QR with the phone camera or open the displayed HTTP address in a browser.
-Enter the PIN from the Mac. Both devices must be on the same Wi-Fi; the Mac
+Run Padly on Windows, or click **Подключить телефон…** in the Mac app's menu.
+Scan the QR with the phone camera or open the displayed HTTP address in a browser.
+Enter the PIN from the computer. Both devices must be on the same Wi-Fi; macOS
 needs Accessibility permission. No phone app is required. Browser resources
-are bundled with the Mac app. See [web/README.md](web/README.md) for controls,
+are bundled with each receiver. See [windows/README.md](windows/README.md) for Windows setup and [web/README.md](web/README.md) for controls,
 build steps and testing limits.
 
 ### Mac app

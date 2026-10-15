@@ -1,4 +1,4 @@
-import { normalizeMacAddress } from './address.js';
+import { normalizeReceiverAddress } from './address.js';
 
 const form = document.getElementById('connect-form');
 const address = document.getElementById('mac-address');
@@ -18,11 +18,11 @@ form.addEventListener('submit', event => {
   event.preventDefault();
   if (navigating) return;
   try {
-    const target = normalizeMacAddress(address.value);
+    const target = normalizeReceiverAddress(address.value);
     address.removeAttribute('aria-invalid');
     message.dataset.state = 'ready';
-    message.textContent = `Открываем ${target.host}. Введите PIN уже на странице вашего Mac.`;
-    button.textContent = 'Открываем Mac…';
+    message.textContent = `Открываем ${target.host}. Введите PIN уже на странице вашего компьютера.`;
+    button.textContent = 'Открываем тачпад…';
     navigating = true;
     // A top-level navigation keeps the actual client on the receiver's origin.
     // Do not probe a private network address from this public page with fetch.

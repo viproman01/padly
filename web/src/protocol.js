@@ -11,7 +11,7 @@ export function unpack(bytes) {
   const msg = decode(bytes, { maxStrLength: 16384, maxBinLength: 65536,
     maxArrayLength: 128, maxMapLength: 128 });
   if (!msg || typeof msg.t !== 'string' || !msg.d || typeof msg.d !== 'object') {
-    throw new Error('Некорректное сообщение от Mac');
+    throw new Error('Некорректное сообщение от компьютера');
   }
   return msg;
 }
@@ -40,7 +40,7 @@ export class Handshake {
   }
   derive(serverPub, ltk = null) {
     if (!(serverPub instanceof Uint8Array) || serverPub.length !== 65 || serverPub[0] !== 4) {
-      throw new Error('Некорректный ключ Mac');
+      throw new Error('Некорректный ключ компьютера');
     }
     // ECDH uses only the affine X coordinate, matching CryptoKit / Java ECDH.
     const shared = p256.getSharedSecret(this.privateKey, serverPub, false).slice(1, 33);

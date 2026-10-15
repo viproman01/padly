@@ -1,16 +1,16 @@
-const ADDRESS_ERROR = 'Введите локальный адрес из меню Padly: например, 192.168.1.25:47822 или macbook.local:47822.';
+const ADDRESS_ERROR = 'Введите локальный адрес из Padly: например, 192.168.1.25:47822. Устройства должны быть в одной сети Wi-Fi.';
 
 /** Convert an explicitly entered LAN receiver address into its local page URL. */
-export function normalizeMacAddress(input) {
+export function normalizeReceiverAddress(input) {
   if (typeof input !== 'string' || !input.trim()) {
-    throw new Error('Скопируйте адрес из меню Padly на Mac.');
+    throw new Error('Скопируйте адрес из Padly на компьютере.');
   }
   const text = input.trim();
   // Parse the spelling before URL canonicalization: URLs accept alternate IPv4
   // encodings, backslashes, credentials and fragments which are unwanted here.
   const match = /^(?:http:\/\/)?([^\/:?#\s@\\]+)(?::([0-9]+))?\/?$/i.exec(text);
   if (!match) {
-    throw new Error('Нужен HTTP-адрес Mac без логина, пути, параметров или PIN.');
+    throw new Error('Нужен HTTP-адрес компьютера без логина, пути, параметров или PIN.');
   }
   const host = match[1].toLowerCase();
   const port = match[2] === undefined ? 47822 : Number(match[2]);
@@ -32,3 +32,6 @@ export function normalizeMacAddress(input) {
   if (!localHost) throw new Error(ADDRESS_ERROR);
   return new URL(`http://${host}:${port}/`);
 }
+
+// Keep compatibility with integrations that used the original Mac-only name.
+export const normalizeMacAddress = normalizeReceiverAddress;
