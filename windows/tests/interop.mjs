@@ -249,10 +249,11 @@ test('five incorrect PINs lock real receiver pairing', async t => {
   f.assertRunning();
 });
 
-test('stored LTK resumes on real receiver without PIN', async t => {
+test('stored LTK resumes without PIN and a new controller releases and replaces the old one', async t => {
   const f = await fixture(t);
   const initial = await pair(f);
-  initial.client.close();
+  initial.client.send('cursorClick', { btn: 0, down: true, ts: Date.now() });
+  await waitFor(() => f.input.some(event => event.kind === 'button' && event.down), 'old controller holds a button');
   const resumed = f.client(initial.storage);
   await resumed.client.connect();
   await waitFor(() => resumed.client.status === 'ready', 'stored-key resume');
@@ -260,6 +261,11 @@ test('stored LTK resumes on real receiver without PIN', async t => {
   const before = f.input.length;
   assert.equal(resumed.client.send('text', { s: 'resumed', ts: Date.now() }), true);
   await waitFor(() => f.input.slice(before).some(event => event.kind === 'text' && event.text === 'resumed'), 'resumed text');
+  await waitFor(() => ['error', 'disconnected'].includes(initial.client.status), 'previous controller closed');
+  const handover = f.input.slice(before);
+  const released = handover.findIndex(event => event.kind === 'release');
+  const typed = handover.findIndex(event => event.kind === 'text' && event.text === 'resumed');
+  assert.ok(released >= 0 && released < typed, 'previous held input must release before new controller input');
   f.assertRunning();
 });
 
